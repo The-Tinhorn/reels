@@ -1,0 +1,10 @@
+# Core
+yt-dlp>=2024.1.0
+PyYAML>=6.0
+
+# Instagram publishing without Meta API keys (private mobile API client)
+instagrapi>=2.0.0
+Pillow>=10.0.0
+
+# Only needed for the optional official Graph API backend
+requests>=2.31.0

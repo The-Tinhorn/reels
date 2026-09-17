@@ -1,0 +1,12 @@
+[Unit]
+Description=Run reelbot hourly
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+# Spread the runs out a little rather than firing exactly on the hour.
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reelbot"
+version = "0.1.0"
+description = "Download approved YouTube Shorts with yt-dlp and publish them as Instagram Reels"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "yt-dlp>=2024.1.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+instagrapi = ["instagrapi>=2.0.0", "Pillow>=10.0.0"]
+graph = ["requests>=2.31.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+reelbot = "reelbot.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["reelbot*"]
+
+[tool.setuptools.package-data]
+reelbot = ["templates/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

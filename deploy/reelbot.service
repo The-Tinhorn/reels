@@ -1,0 +1,28 @@
+# One pipeline pass: discover, download approved videos, publish what is due.
+# Approvals stay manual — this only ever acts on what you already approved.
+#
+#   sudo cp deploy/reelbot.{service,timer} /etc/systemd/system/
+#   sudo systemctl enable --now reelbot.timer
+#
+# Adjust User and the paths to match your install.
+
+[Unit]
+Description=reelbot — post approved YouTube Shorts as Instagram Reels
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=reelbot
+WorkingDirectory=/opt/reelbot
+ExecStart=/opt/reelbot/venv/bin/reelbot run --quiet
+TimeoutStartSec=3600
+
+# The working directory holds config.yaml, the database and the downloads.
+ProtectSystem=strict
+ReadWritePaths=/opt/reelbot
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+# reelbot — one pass an hour. Approvals remain manual; this only publishes
+# videos you have already approved, within the limits in config.yaml.
+#
+#   crontab -e   and paste, adjusting the paths
+#
+0 * * * * cd /opt/reelbot && venv/bin/reelbot run --quiet >> data/reelbot.log 2>&1
+
+# Optional: a discovery-only pass each morning, so the review queue is stocked
+# when you sit down with it.
+0 8 * * * cd /opt/reelbot && venv/bin/reelbot discover --quiet >> data/reelbot.log 2>&1

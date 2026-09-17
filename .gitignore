@@ -1,0 +1,28 @@
+# Runtime data — never commit videos, sessions or credentials
+data/
+*.mp4
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.part
+*.info.json
+
+# Secrets
+.env
+*.session.json
+ig_session.json
+cookies.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/

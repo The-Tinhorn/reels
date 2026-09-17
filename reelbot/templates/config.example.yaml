@@ -1,0 +1,102 @@
+# reelbot configuration
+# Copy to config.yaml (`reelbot init` does this) and edit.
+# ${VAR} anywhere below is filled in from the environment or from a .env file
+# sitting next to this config, so no secrets need to live in here.
+
+db_path: data/reelbot.db
+
+# ---------------------------------------------------------------- sources
+# Where to look for candidate Shorts. Channel /shorts tabs, playlists and
+# search URLs all work — anything yt-dlp can enumerate.
+sources:
+  - name: my-channel
+    url: https://www.youtube.com/@YOUR_HANDLE/shorts
+    limit: 20
+    # auto_approve skips human review. Only ever set it on a channel whose
+    # content is yours to repost; everything else waits in `reelbot review`.
+    auto_approve: false
+
+  # - name: playlist
+  #   url: https://www.youtube.com/playlist?list=PLxxxxxxxx
+  #   limit: 10
+
+# ---------------------------------------------------------------- filters
+# Applied at discovery time. Anything that fails never reaches the review queue.
+filters:
+  max_duration: 90          # Reels cap; also keeps out full-length uploads
+  min_duration: 3
+  min_views: 0
+  published_within_days: 30 # null = no age limit
+  title_allow: []           # if non-empty, the title must contain one of these
+  title_deny: ["#ad", "sponsored"]
+
+# --------------------------------------------------------------- download
+download:
+  dir: data/downloads
+  format: "bv*[ext=mp4][height<=1920]+ba[ext=m4a]/bv*+ba/b"
+  cookies_file: null          # e.g. data/cookies.txt, for age-restricted videos
+  cookies_from_browser: null  # e.g. chrome, firefox
+  rate_limit: null            # e.g. "2M"
+  retries: 3
+  write_thumbnail: true
+
+# ------------------------------------------------------------------ media
+# Re-encode to something Instagram reliably accepts. Files that already
+# conform are passed through untouched. Needs ffmpeg on PATH.
+media:
+  normalize: true
+  target_width: 1080
+  target_height: 1920
+  max_duration: 90
+  fps: 30
+  crf: 23
+  audio_bitrate: 128k
+  background: blur            # blur | black — fills the frame for non-9:16 sources
+  ffmpeg_path: ffmpeg
+  ffprobe_path: ffprobe
+
+# ---------------------------------------------------------------- caption
+# Tokens: {title} {channel} {channel_url} {url} {description} {views}
+#         {upload_date} {hashtags}
+# A caption edited in the review UI overrides this template for that video.
+caption:
+  template: |
+    {title}
+
+    🎥 via {channel}
+    {hashtags}
+  hashtags:
+    - "#reels"
+    - "#shorts"
+  max_length: 2200
+  append_source_url: false
+
+# ---------------------------------------------------------------- publish
+publish:
+  backend: dryrun             # dryrun | instagrapi | graph
+  max_per_day: 3             # null = unlimited; 0 pauses posting entirely
+  min_minutes_between_posts: 90
+  posting_hours: []           # e.g. [9, 13, 19] — local time; empty = any hour
+  share_to_feed: true         # also show the Reel on the profile grid
+  max_attempts: 3
+  delete_after_post: false
+
+# -------------------------------------------------------------- instagram
+# Used by the `instagrapi` backend — your own login, no Meta API keys.
+instagram:
+  username: ${IG_USERNAME}
+  password: ${IG_PASSWORD}
+  verification_code: ${IG_TOTP_SEED:-}   # TOTP seed if the account has 2FA
+  session_file: data/ig_session.json
+  proxy: null                            # e.g. http://user:pass@host:port
+  delay_range: [2, 8]                    # random pause around API calls
+
+# ------------------------------------------------------------------ graph
+# Only for backend: graph (the official Meta API — needs a Business/Creator
+# account, an app, a token, and a public HTTPS URL Meta can fetch the file from).
+graph:
+  ig_user_id: ${IG_USER_ID:-}
+  access_token: ${IG_ACCESS_TOKEN:-}
+  public_base_url: ${PUBLIC_BASE_URL:-}
+  poll_seconds: 5
+  poll_attempts: 60
