@@ -53,8 +53,8 @@ reelbot run --dry-run         # download + normalize the approved ones, post not
 `data/dryrun/`. When the captions look right, switch to real posting:
 
 ```bash
-$EDITOR .env                  # IG_USERNAME / IG_PASSWORD
-sed -i 's/backend: dryrun/backend: instagrapi/' config.yaml
+$EDITOR .env                  # fill in IG_USERNAME / IG_PASSWORD
+$EDITOR config.yaml           # under `publish:`, set backend: instagrapi
 reelbot login                 # logs in once and saves the session
 reelbot run                   # for real
 ```
