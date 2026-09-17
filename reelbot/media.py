@@ -171,7 +171,7 @@ def normalize(
     cmd += ["-map", "1:a" if not info.has_audio else "0:a:0"]
     cmd += [
         "-c:v", "libx264",
-        "-preset", "medium",
+        "-preset", cfg.preset,
         "-crf", str(cfg.crf),
         "-profile:v", "high",
         "-level", "4.1",

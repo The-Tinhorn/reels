@@ -134,6 +134,9 @@ publish:
   delete_after_post: false
 ```
 
+**review** — the approval UI's `host`, `port` and `password`. A password is
+required before it may bind anywhere but localhost.
+
 **media** — normalization targets. Shorts are usually already 1080×1920
 H.264/AAC, and files that already conform are uploaded untouched. Anything else
 is re-encoded to 9:16 with a blurred fill (`background: black` for letterbox
@@ -200,6 +203,82 @@ Either way, approvals stay manual: the scheduled run only ever acts on what you
 already approved, and new discoveries pile up in `pending` until you look at
 them. Check in with `reelbot status`.
 
+## Docker (and Raspberry Pi)
+
+A Pi is a good home for this — it's always on, and the workload is mostly
+waiting. Use **64-bit Raspberry Pi OS**: on 32-bit armv7 several dependencies
+have no prebuilt wheel and compile from source, which takes the better part of
+an hour.
+
+```bash
+git clone -b claude/youtube-shorts-instagram-downloader-1lihx5 \
+  https://github.com/The-Tinhorn/reels.git
+cd reels
+mkdir -p data                              # everything mutable lives here
+
+docker compose build                       # ~5 min on a Pi 4
+docker compose run --rm reelbot init       # writes data/config.yaml and data/.env
+```
+
+Edit `data/config.yaml` — point `sources` at your channel — and `data/.env`:
+
+```
+IG_USERNAME=your_handle
+IG_PASSWORD=your_password
+REELBOT_REVIEW_PASSWORD=pick-something     # the review UI needs this
+```
+
+Set your timezone so `posting_hours` means local time, then start both
+containers:
+
+```bash
+echo "TZ=Europe/London" > .env             # host-level, for docker compose
+docker compose up -d
+```
+
+Two services share one `./data` volume:
+
+| Service | What it does |
+| --- | --- |
+| `reelbot` | A pipeline pass every hour: discover, download approved, publish what's due |
+| `review` | The approval UI on port 8765 |
+
+Open `http://<your-pi>:8765` from any machine on your network, log in with any
+username and the password you set, and approve. Then:
+
+```bash
+docker compose logs -f reelbot             # watch it work
+docker compose run --rm reelbot status     # queue counts and posting budget
+docker compose run --rm reelbot discover   # a discovery pass right now
+```
+
+SQLite runs in WAL mode with a busy timeout, so both containers can use the
+same database safely.
+
+### Things worth knowing on a Pi
+
+**The review UI has a password for a reason.** In a container it must bind to
+`0.0.0.0` to be reachable at all, and it can approve posts. reelbot refuses to
+start on a non-localhost address without one. Keep it on your LAN — don't
+port-forward it or stick it on Tailscale Funnel.
+
+**Encoding is the slow part.** Most Shorts are already 1080×1920 H.264/AAC and
+are uploaded untouched, so the common case costs nothing. When a re-encode *is*
+needed, a Pi 4 takes a few minutes per video at the default `preset: medium`.
+Set `preset: veryfast` under `media:` — roughly 4× quicker for a few percent
+more bitrate, which no one will see on a phone.
+
+**File ownership.** The image runs as UID 1000, the first user on Raspberry Pi
+OS, so files in `./data` belong to you rather than root. If `id -u` says
+something else, uncomment the `user:` line in `docker-compose.yml`.
+
+**You'll see `data/data/downloads`.** Paths in the config resolve relative to
+the config file, which lives in the volume root. Harmless; flatten it by
+setting `db_path: reelbot.db` and `download.dir: downloads` if it bothers you.
+
+**Updating:** `git pull && docker compose build && docker compose up -d`. Your
+`data/` directory is untouched.
+
 ## How it's put together
 
 ```
@@ -225,7 +304,7 @@ git-ignored, as are `.env` and the saved session.
 pip install pytest && pytest
 ```
 
-87 tests. They run offline — the yt-dlp network call is the only thing faked.
+96 tests. They run offline — the yt-dlp network call is the only thing faked.
 `tests/test_integration.py` drives the real pipeline end to end, including a
 real ffmpeg re-encode and the real review server; the ffmpeg-dependent tests
 skip themselves if it isn't installed.

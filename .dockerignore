@@ -1,0 +1,16 @@
+.git
+.gitignore
+data
+venv
+.venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+tests
+deploy
+*.egg-info
+.env
+config.yaml
+*.mp4
+*.bundle

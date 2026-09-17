@@ -6,7 +6,10 @@ review console for one person on one machine, not a public service.
 
 from __future__ import annotations
 
+import base64
+import hmac
 import html
+import ipaddress
 import json
 import logging
 import mimetypes
@@ -14,12 +17,27 @@ import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 
 from reelbot.caption import build_caption
 from reelbot.config import Config
 from reelbot.store import ALL_STATUSES, APPROVED, PENDING, POSTED, Store
 
 log = logging.getLogger(__name__)
+
+
+class ReviewError(Exception):
+    pass
+
+
+def is_loopback(host: str) -> bool:
+    """True for addresses only reachable from this machine."""
+    if host in ("localhost", ""):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -151,10 +169,37 @@ def _card(video, cfg: Config) -> str:
 class ReviewHandler(BaseHTTPRequestHandler):
     cfg: Config
     store: Store
+    password: str = ""       # empty disables authentication
     server_version = "reelbot"
 
     def log_message(self, fmt: str, *args) -> None:  # quieter than the default
         log.debug("%s - %s", self.address_string(), fmt % args)
+
+    # --------------------------------------------------------------------- auth
+
+    def _authorized(self) -> bool:
+        """HTTP Basic, so the browser handles the prompt. Any username works."""
+        if not self.password:
+            return True
+        header = self.headers.get("Authorization", "")
+        scheme, _, encoded = header.partition(" ")
+        if scheme.lower() != "basic":
+            return False
+        try:
+            decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return False
+        _, _, supplied = decoded.partition(":")
+        return hmac.compare_digest(supplied, self.password)
+
+    def _challenge(self) -> None:
+        body = b"authentication required"
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="reelbot", charset="UTF-8"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     # ------------------------------------------------------------------ replies
 
@@ -192,6 +237,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------------ routing
 
     def do_GET(self) -> None:
+        if not self._authorized():
+            self._challenge()
+            return
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/":
             query = urllib.parse.parse_qs(parsed.query)
@@ -228,6 +276,9 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._send(resolved.read_bytes(), ctype)
 
     def do_POST(self) -> None:
+        if not self._authorized():
+            self._challenge()
+            return
         if urllib.parse.urlparse(self.path).path != "/action":
             self._send(b"not found", "text/plain; charset=utf-8", 404)
             return
@@ -256,12 +307,41 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._redirect(referer)
 
 
-def serve(cfg: Config, store: Store, host: str = "127.0.0.1", port: int = 8765,
-          open_browser: bool = True) -> None:
-    handler = type("BoundReviewHandler", (ReviewHandler,), {"cfg": cfg, "store": store})
+def serve(
+    cfg: Config,
+    store: Store,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    open_browser: bool = True,
+    password: Optional[str] = None,
+    allow_insecure: bool = False,
+) -> None:
+    host = host or cfg.review.host
+    port = port if port is not None else cfg.review.port
+    password = cfg.review.password if password is None else password
+
+    # The UI shows the whole queue and can approve posts. Off this machine,
+    # that needs a password — in a container especially, where binding to
+    # 0.0.0.0 is the only way to reach it at all.
+    if not is_loopback(host) and not password and not allow_insecure:
+        raise ReviewError(
+            f"refusing to serve the review UI on {host} without a password.\n"
+            "Set review.password in config.yaml (or REELBOT_REVIEW_PASSWORD in "
+            ".env), or pass --insecure if this machine is genuinely private."
+        )
+
+    handler = type(
+        "BoundReviewHandler",
+        (ReviewHandler,),
+        {"cfg": cfg, "store": store, "password": password},
+    )
     httpd = ThreadingHTTPServer((host, port), handler)
     url = f"http://{host}:{port}/"
     print(f"Review UI at {url}  (Ctrl-C to stop)")
+    if password:
+        print("Password protected — any username, the password from your config.")
+    elif not is_loopback(host):
+        print("WARNING: no password set; anyone who can reach this port can post.")
     if open_browser:
         try:
             webbrowser.open(url)

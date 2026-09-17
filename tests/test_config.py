@@ -72,3 +72,41 @@ def test_shipped_template_parses(tmp_path):
     cfg = load_config(template)
     assert cfg.publish.backend == "dryrun"     # safe by default
     assert cfg.sources and cfg.sources[0].auto_approve is False
+
+
+def test_dotenv_last_value_wins_within_the_file():
+    """The shipped .env ships empty placeholders; appending a value must work."""
+    from reelbot.config import parse_dotenv
+
+    values = parse_dotenv("REELBOT_REVIEW_PASSWORD=\nOTHER=1\nREELBOT_REVIEW_PASSWORD=hunter2\n")
+    assert values["REELBOT_REVIEW_PASSWORD"] == "hunter2"
+    assert values["OTHER"] == "1"
+
+
+def test_dotenv_parsing_details():
+    from reelbot.config import parse_dotenv
+
+    values = parse_dotenv(
+        '# a comment\n'
+        'export EXPORTED=yes\n'
+        'QUOTED="with spaces"\n'
+        "SINGLE='single'\n"
+        'EMPTY=\n'
+        'WITH_EQUALS=a=b\n'
+        'not a pair\n'
+    )
+    assert values == {
+        "EXPORTED": "yes",
+        "QUOTED": "with spaces",
+        "SINGLE": "single",
+        "EMPTY": "",
+        "WITH_EQUALS": "a=b",
+    }
+
+
+def test_review_password_comes_from_the_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("REELBOT_REVIEW_PASSWORD", "hunter2")
+    cfg = load_config(
+        write(tmp_path / "c.yaml", "review:\n  password: ${REELBOT_REVIEW_PASSWORD:-}\n")
+    )
+    assert cfg.review.password == "hunter2"

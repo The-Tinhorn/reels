@@ -178,8 +178,17 @@ def cmd_reject(args) -> int:
 def cmd_review(args) -> int:
     cfg, store = _open(args)
     with store:
-        review.serve(cfg, store, host=args.host, port=args.port,
-                     open_browser=not args.no_browser)
+        try:
+            review.serve(
+                cfg, store,
+                host=args.host, port=args.port,
+                open_browser=not args.no_browser,
+                password=args.password,
+                allow_insecure=args.insecure,
+            )
+        except review.ReviewError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
     return 0
 
 
@@ -382,8 +391,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_reject)
 
     p = sub.add_parser("review", parents=[common], help="open the local approval UI in a browser")
-    p.add_argument("--host", default="127.0.0.1")
-    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--host", help="bind address (default: review.host, 127.0.0.1)")
+    p.add_argument("--port", type=int, help="port (default: review.port, 8765)")
+    p.add_argument("--password", help="require this password (default: review.password)")
+    p.add_argument("--insecure", action="store_true",
+                   help="allow a non-local bind with no password")
     p.add_argument("--no-browser", action="store_true")
     p.set_defaults(func=cmd_review)
 

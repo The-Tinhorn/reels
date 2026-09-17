@@ -50,6 +50,7 @@ media:
   max_duration: 90
   fps: 30
   crf: 23
+  preset: medium              # veryfast on a Raspberry Pi — far quicker encodes
   audio_bitrate: 128k
   background: blur            # blur | black — fills the frame for non-9:16 sources
   ffmpeg_path: ffmpeg
@@ -70,6 +71,14 @@ caption:
     - "#shorts"
   max_length: 2200
   append_source_url: false
+
+# ----------------------------------------------------------------- review
+# The approval UI. It shows your queue and can approve posts, so a password is
+# required before it may bind to anything but localhost (e.g. in Docker).
+review:
+  host: 127.0.0.1
+  port: 8765
+  password: ${REELBOT_REVIEW_PASSWORD:-}
 
 # ---------------------------------------------------------------- publish
 publish:

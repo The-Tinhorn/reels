@@ -18,18 +18,31 @@ import yaml
 ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
-def load_dotenv(path: Path) -> None:
-    """Load ``KEY=value`` pairs from *path* into os.environ without overriding."""
-    if not path.exists():
-        return
-    for raw in path.read_text(encoding="utf-8").splitlines():
+def parse_dotenv(text: str) -> Dict[str, str]:
+    """Parse ``KEY=value`` lines. A repeated key takes its last value."""
+    values: Dict[str, str] = {}
+    for raw in text.splitlines():
         line = raw.strip()
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key:
+            values[key] = value
+    return values
+
+
+def load_dotenv(path: Path) -> None:
+    """Load *path* into os.environ. The real environment still wins."""
+    if not path.exists():
+        return
+    for key, value in parse_dotenv(path.read_text(encoding="utf-8")).items():
+        if key not in os.environ:
             os.environ[key] = value
 
 
@@ -90,6 +103,9 @@ class MediaConfig:
     max_duration: int = 90
     fps: int = 30
     crf: int = 23
+    # x264 speed/size trade-off. `veryfast` is roughly 4x quicker than
+    # `medium` for a few percent more bitrate — worth it on a Raspberry Pi.
+    preset: str = "medium"
     # How to fill the frame when the source is not already 9:16.
     background: str = "blur"   # blur | black
     audio_bitrate: str = "128k"
@@ -103,6 +119,15 @@ class CaptionConfig:
     hashtags: List[str] = field(default_factory=lambda: ["#reels", "#shorts"])
     max_length: int = 2200
     append_source_url: bool = False
+
+
+@dataclass
+class ReviewConfig:
+    host: str = "127.0.0.1"
+    port: int = 8765
+    # Required before the UI may bind to anything but loopback: it shows your
+    # queue and can approve posts, and it is otherwise wide open.
+    password: str = ""
 
 
 @dataclass
@@ -148,6 +173,7 @@ class Config:
     download: DownloadConfig = field(default_factory=DownloadConfig)
     media: MediaConfig = field(default_factory=MediaConfig)
     caption: CaptionConfig = field(default_factory=CaptionConfig)
+    review: ReviewConfig = field(default_factory=ReviewConfig)
     publish: PublishConfig = field(default_factory=PublishConfig)
     instagram: InstagramConfig = field(default_factory=InstagramConfig)
     graph: GraphConfig = field(default_factory=GraphConfig)
@@ -204,6 +230,7 @@ def load_config(path: str | os.PathLike) -> Config:
         download=_build(DownloadConfig, raw.get("download")),
         media=_build(MediaConfig, raw.get("media")),
         caption=_build(CaptionConfig, raw.get("caption")),
+        review=_build(ReviewConfig, raw.get("review")),
         publish=_build(PublishConfig, raw.get("publish")),
         instagram=_build(InstagramConfig, raw.get("instagram")),
         graph=_build(GraphConfig, raw.get("graph")),

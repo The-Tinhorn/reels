@@ -1,0 +1,47 @@
+# Two containers over one shared /data volume: the pipeline on a loop, and the
+# approval UI. SQLite runs in WAL mode with a busy timeout, so both processes
+# can use the same database safely.
+#
+#   docker compose up -d
+#   docker compose run --rm reelbot init      # first time only
+#   open http://<your-pi>:8765
+
+services:
+  # Discovers, downloads approved videos, and publishes what is due.
+  reelbot:
+    build: .
+    image: reelbot:latest
+    container_name: reelbot
+    restart: unless-stopped
+    command: ["run", "--loop", "--interval", "60"]
+    volumes:
+      - ./data:/data
+    # Uncomment if your host user is not UID 1000, so the files it writes to
+    # ./data stay yours:  id -u  and  id -g  tell you the values.
+    # user: "1001:1001"
+    environment:
+      # posting_hours is local time; without this the container thinks in UTC.
+      TZ: ${TZ:-Europe/London}
+    env_file:
+      - path: ./data/.env
+        required: false
+
+  # The approval queue. Nothing is ever posted until you approve it here.
+  review:
+    build: .
+    image: reelbot:latest
+    container_name: reelbot-review
+    restart: unless-stopped
+    command: ["review", "--host", "0.0.0.0", "--no-browser"]
+    ports:
+      # Reachable from your LAN. Do not port-forward this to the internet.
+      - "8765:8765"
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: ${TZ:-Europe/London}
+      # Required for a non-localhost bind. Set it in data/.env.
+      REELBOT_REVIEW_PASSWORD: ${REELBOT_REVIEW_PASSWORD:-}
+    env_file:
+      - path: ./data/.env
+        required: false
