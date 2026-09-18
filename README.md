@@ -253,6 +253,7 @@ from the CasaOS app settings:
 | `REELBOT_MAX_DURATION` | `180` | Skip anything longer, in seconds. Also the trim ceiling. |
 | `REELBOT_PUBLISHED_WITHIN_DAYS` | none | Ignore Shorts older than N days. Empty = no limit |
 | `REELBOT_PRESET` | `medium` | `veryfast` on a Pi |
+| `REELBOT_DELETE_AFTER_POST` | `false` | Delete each video once posted, to save disk |
 | `REELBOT_REVIEW_PASSWORD` | — | Required for the approval page |
 | `IG_USERNAME` / `IG_PASSWORD` | — | Your Instagram login |
 | `IG_TOTP_SEED` | — | 2FA seed key, if the account has 2FA |
@@ -329,11 +330,16 @@ same database safely.
 start on a non-localhost address without one. Keep it on your LAN — don't
 port-forward it or stick it on Tailscale Funnel.
 
-**Encoding is the slow part.** Most Shorts are already 1080×1920 H.264/AAC and
-are uploaded untouched, so the common case costs nothing. When a re-encode *is*
-needed, a Pi 4 takes a few minutes per video at the default `preset: medium`.
-Set `preset: veryfast` under `media:` — roughly 4× quicker for a few percent
-more bitrate, which no one will see on a phone.
+**Encoding is the slow part — when it happens at all.** Most Shorts are already
+1080×1920 H.264/AAC and are uploaded untouched, so the common case costs
+nothing. When a re-encode *is* needed, the blurred background is what's
+expensive, not the encoder: measured on the same 20s clip, blur+`veryfast` took
+16.6s and black bars+`veryfast` 6.0s, while going from `veryfast` to `slow` only
+added about 20%. On a Pi, reach for `background: black` before `preset`.
+
+**Disk.** Videos are kept after posting by default, in `data/downloads/`.
+Set `REELBOT_DELETE_AFTER_POST=true` to free each one as soon as its Reel is
+up — worth it on an SD card.
 
 **File ownership.** The container starts as root only long enough to take
 ownership of its data directory — CasaOS and `docker run -v` both create the

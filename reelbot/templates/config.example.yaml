@@ -88,7 +88,8 @@ publish:
   posting_hours: "${REELBOT_POSTING_HOURS:-}"    # e.g. "9,13,19" — local; empty = any hour
   share_to_feed: true         # also show the Reel on the profile grid
   max_attempts: 3
-  delete_after_post: false
+  # true frees disk as soon as a Reel is up — worth it on an SD card.
+  delete_after_post: "${REELBOT_DELETE_AFTER_POST:-false}"
 
 # -------------------------------------------------------------- instagram
 # Used by the `instagrapi` backend — your own login, no Meta API keys.

@@ -81,14 +81,32 @@ def _thumbnail_for(video: Video, video_path: Path, cfg: Config) -> Optional[Path
     return media.cover_frame(video_path, dest, cfg.media, at=min(1.0, max(0.0, video.duration / 4)))
 
 
-def _cleanup(video: Video, video_path: Path) -> None:
-    for path in {Path(video.video_path or ""), video_path}:
+def _cleanup(cfg: Config, store: Store, video: Video, upload_path: Path) -> None:
+    """Delete every file this video produced, once it is safely posted.
+
+    That is the download, the normalized copy, the cover frame and the
+    thumbnail — everything is named ``<video id>.*`` in the download
+    directory, so a glob catches the lot rather than just the two paths the
+    database happens to know about.
+    """
+    outdir = cfg.resolve(cfg.download.dir)
+    paths = {Path(video.video_path or ""), upload_path, Path(video.thumb_path or "")}
+    paths.update(outdir.glob(f"{video.id}.*"))
+
+    freed = 0
+    for path in sorted(p for p in paths if str(p)):
         try:
-            if path and path.exists():
+            if path.is_file():
+                freed += path.stat().st_size
                 path.unlink()
                 log.debug("deleted %s", path)
         except OSError as exc:  # pragma: no cover - filesystem dependent
             log.warning("could not delete %s: %s", path, exc)
+
+    # The files are gone; stop pointing the review UI at them.
+    store.update(video.id, video_path=None, thumb_path=None)
+    if freed:
+        log.info("freed %.1f MB after posting %s", freed / 1_000_000, video.id)
 
 
 def publish_video(
@@ -139,7 +157,7 @@ def publish_video(
     log.info("posted %s -> %s", video.id, result.permalink or result.media_id)
 
     if cfg.publish.delete_after_post:
-        _cleanup(video, upload_path)
+        _cleanup(cfg, store, video, upload_path)
     return result
 
 

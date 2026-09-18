@@ -50,6 +50,10 @@ services:
       # ---- Raspberry Pi --------------------------------------------------
       REELBOT_PRESET: "veryfast"            # much quicker encodes on a Pi
 
+      # ---- disk ------------------------------------------------------------
+      # true deletes each video once it is posted. Leave false to keep them.
+      REELBOT_DELETE_AFTER_POST: "false"
+
       # ---- file ownership -------------------------------------------------
       # The container takes ownership of its data directory for this user.
       # 1000 is the first user on Raspberry Pi OS and most CasaOS installs.
@@ -106,6 +110,9 @@ services:
         - container: TZ
           description:
             en_us: "Your timezone, so posting hours mean local time"
+        - container: REELBOT_DELETE_AFTER_POST
+          description:
+            en_us: "Delete each video once it has been posted, to save disk space"
         - container: PUID
           description:
             en_us: "User ID that should own the files it writes (usually 1000)"

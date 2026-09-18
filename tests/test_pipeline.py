@@ -231,3 +231,36 @@ def test_max_per_day_none_means_unlimited(cfg, store):
             vid, POSTED, posted_at=datetime.now(timezone.utc).isoformat(timespec="seconds")
         )
     assert pipeline.can_post_now(cfg, store)[0] is True
+
+
+def test_delete_after_post_removes_every_artifact(cfg, store, downloaded):
+    """Cover frames and thumbnails were being left behind to fill the disk."""
+    cfg.publish.delete_after_post = True
+    outdir = cfg.resolve(cfg.download.dir)
+    original = Path(downloaded.video_path)
+    cover = outdir / "v1.reel.cover.jpg"
+    thumb = outdir / "v1.webp"
+    normalized = outdir / "v1.reel.mp4"
+    for extra in (cover, thumb, normalized):
+        extra.write_bytes(b"x" * 100)
+    store.update("v1", thumb_path=str(thumb))
+
+    # A different video's files must survive.
+    bystander = outdir / "v2.mp4"
+    bystander.write_bytes(b"keep me")
+
+    pipeline.publish_video(cfg, store, store.get("v1"), publisher=FakePublisher())
+
+    for gone in (original, cover, thumb, normalized):
+        assert not gone.exists(), f"{gone.name} should have been deleted"
+    assert bystander.exists()
+
+    posted = store.get("v1")
+    assert posted.status == POSTED
+    assert posted.video_path is None and posted.thumb_path is None
+
+
+def test_files_are_kept_by_default(cfg, store, downloaded):
+    assert cfg.publish.delete_after_post is False
+    pipeline.publish_video(cfg, store, downloaded, publisher=FakePublisher())
+    assert Path(downloaded.video_path).exists()
