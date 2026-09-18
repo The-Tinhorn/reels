@@ -355,6 +355,9 @@ setting `db_path: reelbot.db` and `download.dir: downloads` if it bothers you.
 **Updating:** `git pull && docker compose build && docker compose up -d`. Your
 `data/` directory is untouched.
 
+Maintaining or handing this off? [`HANDOFF.md`](HANDOFF.md) covers the design
+decisions, the bugs already fixed, and what is still unverified.
+
 ## How it's put together
 
 ```
