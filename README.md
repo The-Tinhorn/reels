@@ -254,6 +254,8 @@ from the CasaOS app settings:
 | `REELBOT_PUBLISHED_WITHIN_DAYS` | none | Ignore Shorts older than N days. Empty = no limit |
 | `REELBOT_PRESET` | `medium` | `veryfast` on a Pi |
 | `REELBOT_DELETE_AFTER_POST` | `false` | Delete each video once posted, to save disk |
+| `REELBOT_COOKIES_FILE` | auto | Cookie file path; `cookies.txt` beside the config is found anyway |
+| `REELBOT_PLAYER_CLIENT` | yt-dlp default | e.g. `tv` — another route past YouTube's bot check |
 | `REELBOT_REVIEW_PASSWORD` | — | Required for the approval page |
 | `IG_USERNAME` / `IG_PASSWORD` | — | Your Instagram login |
 | `IG_TOTP_SEED` | — | 2FA seed key, if the account has 2FA |
@@ -385,9 +387,28 @@ skip themselves if it isn't installed.
 
 ## Troubleshooting
 
-**`Sign in to confirm you're not a bot` from yt-dlp** — YouTube is challenging
-the IP. Set `download.cookies_from_browser: firefox`, or export cookies to a
-file and point `download.cookies_file` at it.
+**`Sign in to confirm you're not a bot` from yt-dlp** — YouTube wants proof
+there's a person behind the request. Give it cookies from a logged-in session:
+
+1. Install a Netscape-format cookie exporter ("Get cookies.txt LOCALLY" for
+   Chrome or Firefox is the usual one).
+2. Open a **private/incognito window** and log in to YouTube there. Use a
+   throwaway Google account, not your main one — these cookies grant access to
+   whatever account exports them, and YouTube does flag accounts for this.
+3. With YouTube open in that window, export cookies to `cookies.txt`.
+4. **Close the private window without logging out.** Logging out invalidates
+   the cookies you just exported.
+5. Save the file as `cookies.txt` next to `config.yaml` — in Docker that is
+   `/DATA/AppData/reelbot/cookies.txt`. It's picked up automatically, no
+   setting to change.
+
+Cookies expire, so expect to redo this every few weeks. `download.cookies_file`
+points somewhere else if you'd rather; `download.cookies_from_browser: firefox`
+works when running on a desktop, but not in a container, which has no browser.
+
+Worth trying first, since it needs no account at all:
+`REELBOT_PLAYER_CLIENT=tv` (or `web_safari`) makes yt-dlp impersonate a
+different YouTube client, which sometimes sidesteps the check entirely.
 
 **A login challenge from Instagram** — open the app on your phone, approve the
 login, then `reelbot login --force`.

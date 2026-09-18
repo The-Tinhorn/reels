@@ -34,8 +34,15 @@ filters:
 download:
   dir: data/downloads
   format: "bv*[ext=mp4][height<=1920]+ba[ext=m4a]/bv*+ba/b"
-  cookies_file: null          # e.g. data/cookies.txt, for age-restricted videos
-  cookies_from_browser: null  # e.g. chrome, firefox
+  # YouTube answers automated requests with "Sign in to confirm you're not a
+  # bot" more and more. Export cookies from a logged-in browser in Netscape
+  # format and save them as cookies.txt beside this file — found automatically,
+  # no setting needed. This option is only for keeping them somewhere else.
+  cookies_file: "${REELBOT_COOKIES_FILE:-}"
+  cookies_from_browser: null  # chrome, firefox — only useful outside Docker
+  # Another way past the bot check: make yt-dlp use different YouTube clients,
+  # e.g. "tv" or "web_safari,android".
+  player_client: "${REELBOT_PLAYER_CLIENT:-}"
   rate_limit: null            # e.g. "2M"
   retries: 3
   write_thumbnail: true

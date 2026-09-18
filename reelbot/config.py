@@ -90,8 +90,13 @@ class DownloadConfig:
     dir: str = "data/downloads"
     # Prefer a vertical MP4/H.264 stream; yt-dlp merges A/V when needed.
     format: str = "bv*[ext=mp4][height<=1920]+ba[ext=m4a]/bv*+ba/b"
+    # Left unset, a cookies.txt sitting next to config.yaml is used anyway.
     cookies_file: Optional[str] = None
     cookies_from_browser: Optional[str] = None
+    # yt-dlp YouTube clients to try, e.g. ["tv"] or ["web_safari", "android"].
+    # Another route past "Sign in to confirm you're not a bot".
+    player_client: List[str] = field(default_factory=list)
+    user_agent: Optional[str] = None
     rate_limit: Optional[str] = None
     retries: int = 3
     write_thumbnail: bool = True

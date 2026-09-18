@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from reelbot.config import Config, Filters, Source
 from reelbot.store import PENDING, APPROVED, Store, Video, utcnow
+from reelbot.ytdlp import apply_auth
 
 log = logging.getLogger(__name__)
 
@@ -30,11 +31,7 @@ def _ydl_opts(cfg: Config, flat: bool) -> Dict[str, Any]:
         "noplaylist": False,
         "extract_flat": "in_playlist" if flat else False,
     }
-    if cfg.download.cookies_file:
-        opts["cookiefile"] = str(cfg.resolve(cfg.download.cookies_file))
-    if cfg.download.cookies_from_browser:
-        opts["cookiesfrombrowser"] = (cfg.download.cookies_from_browser,)
-    return opts
+    return apply_auth(cfg, opts)
 
 
 def extract(url: str, opts: Dict[str, Any]) -> Optional[Dict[str, Any]]:

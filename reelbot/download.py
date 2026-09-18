@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from reelbot.config import Config
 from reelbot.store import APPROVED, DOWNLOADED, FAILED, Store, Video, utcnow
+from reelbot.ytdlp import COOKIE_HELP, apply_auth, looks_like_bot_check
 
 log = logging.getLogger(__name__)
 
@@ -38,11 +39,7 @@ def build_opts(cfg: Config, outdir: Path) -> Dict[str, Any]:
     }
     if cfg.download.rate_limit:
         opts["ratelimit"] = _parse_rate(cfg.download.rate_limit)
-    if cfg.download.cookies_file:
-        opts["cookiefile"] = str(cfg.resolve(cfg.download.cookies_file))
-    if cfg.download.cookies_from_browser:
-        opts["cookiesfrombrowser"] = (cfg.download.cookies_from_browser,)
-    return opts
+    return apply_auth(cfg, opts)
 
 
 def _parse_rate(value: str) -> Optional[int]:
@@ -113,6 +110,8 @@ def download_video(
     try:
         info = downloader(video.url, build_opts(cfg, outdir))
     except Exception as exc:
+        if looks_like_bot_check(exc):
+            log.error("%s: %s", video.id, COOKIE_HELP)
         store.set_status(
             video.id, FAILED, error=f"download: {exc}", attempts=video.attempts + 1
         )
