@@ -333,9 +333,10 @@ needed, a Pi 4 takes a few minutes per video at the default `preset: medium`.
 Set `preset: veryfast` under `media:` — roughly 4× quicker for a few percent
 more bitrate, which no one will see on a phone.
 
-**File ownership.** The image runs as UID 1000, the first user on Raspberry Pi
-OS, so files in `./data` belong to you rather than root. If `id -u` says
-something else, uncomment the `user:` line in `docker-compose.yml`.
+**File ownership.** The container starts as root only long enough to take
+ownership of its data directory — CasaOS and `docker run -v` both create the
+host directory as root — then drops to `PUID:PGID`, 1000:1000 by default. If
+`id -u` says something else, set `PUID` and `PGID` to match.
 
 **You'll see `data/data/downloads`.** Paths in the config resolve relative to
 the config file, which lives in the volume root. Harmless; flatten it by

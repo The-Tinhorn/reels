@@ -50,6 +50,12 @@ services:
       # ---- Raspberry Pi --------------------------------------------------
       REELBOT_PRESET: "veryfast"            # much quicker encodes on a Pi
 
+      # ---- file ownership -------------------------------------------------
+      # The container takes ownership of its data directory for this user.
+      # 1000 is the first user on Raspberry Pi OS and most CasaOS installs.
+      PUID: "1000"
+      PGID: "1000"
+
     healthcheck:
       test: ["CMD", "reelbot", "status"]
       interval: 5m
@@ -100,6 +106,12 @@ services:
         - container: TZ
           description:
             en_us: "Your timezone, so posting hours mean local time"
+        - container: PUID
+          description:
+            en_us: "User ID that should own the files it writes (usually 1000)"
+        - container: PGID
+          description:
+            en_us: "Group ID that should own the files it writes (usually 1000)"
       ports:
         - container: "8765"
           description:

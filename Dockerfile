@@ -7,7 +7,7 @@ FROM python:3.11-slim-bookworm
 # ffmpeg for normalization; tzdata so publish.posting_hours means your local
 # time rather than UTC.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg tzdata \
+    && apt-get install -y --no-install-recommends ffmpeg tzdata gosu \
     && rm -rf /var/lib/apt/lists/*
 
 LABEL org.opencontainers.image.title="reelbot" \
@@ -31,9 +31,9 @@ RUN pip install --no-cache-dir --no-deps -e .
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Run as UID 1000 — the first user on Raspberry Pi OS — so config.yaml and the
-# downloads on the mounted volume belong to you and not to root. If your host
-# user is a different UID, set `user:` in docker-compose.yml to match.
+# The entrypoint starts as root only long enough to take ownership of the
+# mounted volume — CasaOS and `docker run -v` both create it as root — then
+# drops to PUID:PGID (1000:1000 by default) for everything that matters.
 RUN useradd --create-home --uid 1000 reelbot 2>/dev/null || true
 
 # Everything mutable — config, database, downloads, the saved Instagram
@@ -41,11 +41,10 @@ RUN useradd --create-home --uid 1000 reelbot 2>/dev/null || true
 # written anywhere else in the image.
 WORKDIR /data
 VOLUME /data
-USER 1000
 
 # Passes once `reelbot init` has been run: it proves the config parses, the
 # database opens and ffmpeg is present.
-HEALTHCHECK --interval=5m --timeout=30s --start-period=30s \
+HEALTHCHECK --interval=5m --timeout=30s --start-period=40s \
     CMD reelbot status > /dev/null || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
