@@ -11,7 +11,7 @@ import os
 import re
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, get_args, get_origin, get_type_hints
 
 import yaml
 
@@ -189,6 +189,66 @@ class Config:
         return p if p.is_absolute() else (self.root / p)
 
 
+TRUE_WORDS = {"1", "true", "yes", "on"}
+FALSE_WORDS = {"0", "false", "no", "off"}
+#: Strings that mean "not set" — an unset ${VAR} expands to one of these.
+NULL_WORDS = {"", "null", "none", "~"}
+
+
+def coerce(value: Any, hint: Any, where: str) -> Any:
+    """Convert *value* to the type a config field declares.
+
+    Everything arriving from an environment variable is a string — that is how
+    Docker and CasaOS pass settings — so `max_per_day: "3"` has to become an
+    int before anything compares against it.
+    """
+    origin = get_origin(hint)
+
+    # Optional[X] / Union[X, None]
+    if origin is Union:
+        args = [a for a in get_args(hint) if a is not type(None)]
+        if isinstance(value, str) and value.strip().lower() in NULL_WORDS:
+            return None
+        if value is None:
+            return None
+        return coerce(value, args[0], where) if len(args) == 1 else value
+
+    if value is None:
+        return None
+
+    if origin in (list, List):
+        item_hint = (get_args(hint) or (str,))[0]
+        if isinstance(value, str):
+            # "9,13,19" and "#reels #shorts" both read naturally in a GUI field.
+            parts = [p for p in re.split(r"[,\s]+", value.strip()) if p]
+        elif isinstance(value, (list, tuple)):
+            parts = list(value)
+        else:
+            parts = [value]
+        return [coerce(p, item_hint, where) for p in parts]
+
+    if hint is bool:
+        if isinstance(value, bool):
+            return value
+        text = str(value).strip().lower()
+        if text in TRUE_WORDS:
+            return True
+        if text in FALSE_WORDS:
+            return False
+        raise ConfigError(f"{where}: expected true or false, got {value!r}")
+
+    if hint in (int, float) and not isinstance(value, bool):
+        try:
+            return hint(str(value).strip())
+        except (TypeError, ValueError):
+            raise ConfigError(f"{where}: expected a number, got {value!r}") from None
+
+    if hint is str and not isinstance(value, str):
+        return str(value)
+
+    return value
+
+
 def _build(cls, data: Optional[Dict[str, Any]]):
     """Instantiate dataclass *cls* from *data*, ignoring unknown keys."""
     data = data or {}
@@ -200,7 +260,14 @@ def _build(cls, data: Optional[Dict[str, Any]]):
         raise ConfigError(
             f"unknown option(s) for {cls.__name__.lower()}: {', '.join(sorted(unknown))}"
         )
-    return cls(**{k: v for k, v in data.items() if k in known})
+    hints = get_type_hints(cls)
+    section = cls.__name__.replace("Config", "").lower()
+    values = {
+        k: coerce(v, hints.get(k, Any), f"{section}.{k}")
+        for k, v in data.items()
+        if k in known
+    }
+    return cls(**values)
 
 
 class ConfigError(Exception):

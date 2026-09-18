@@ -10,6 +10,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg tzdata \
     && rm -rf /var/lib/apt/lists/*
 
+LABEL org.opencontainers.image.title="reelbot" \
+      org.opencontainers.image.description="Post approved YouTube Shorts as Instagram Reels" \
+      org.opencontainers.image.source="https://github.com/The-Tinhorn/reels"
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
@@ -23,6 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY pyproject.toml README.md ./
 COPY reelbot ./reelbot
 RUN pip install --no-cache-dir --no-deps -e .
+
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Run as UID 1000 — the first user on Raspberry Pi OS — so config.yaml and the
 # downloads on the mounted volume belong to you and not to root. If your host
@@ -41,5 +48,6 @@ USER 1000
 HEALTHCHECK --interval=5m --timeout=30s --start-period=30s \
     CMD reelbot status > /dev/null || exit 1
 
-ENTRYPOINT ["reelbot"]
-CMD ["run", "--loop", "--interval", "60"]
+ENTRYPOINT ["docker-entrypoint.sh"]
+# One process: the pipeline on a loop, serving the approval UI alongside it.
+CMD ["run", "--loop", "--interval", "60", "--with-review", "--review-host", "0.0.0.0"]

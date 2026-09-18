@@ -110,3 +110,83 @@ def test_review_password_comes_from_the_env(monkeypatch, tmp_path):
         write(tmp_path / "c.yaml", "review:\n  password: ${REELBOT_REVIEW_PASSWORD:-}\n")
     )
     assert cfg.review.password == "hunter2"
+
+
+# ------------------------------------------------- values arriving as strings
+# Docker and CasaOS pass every setting as a string, so the loader has to
+# convert them to the types the rest of the code expects.
+
+
+def test_numbers_from_strings(tmp_path):
+    cfg = load_config(write(tmp_path / "c.yaml", "publish:\n  max_per_day: '7'\n"))
+    assert cfg.publish.max_per_day == 7 and isinstance(cfg.publish.max_per_day, int)
+
+
+def test_booleans_from_strings(tmp_path):
+    cfg = load_config(
+        write(tmp_path / "c.yaml", "publish:\n  share_to_feed: 'false'\n"
+                                   "  delete_after_post: 'yes'\n")
+    )
+    assert cfg.publish.share_to_feed is False
+    assert cfg.publish.delete_after_post is True
+
+
+def test_optional_int_from_an_empty_string_is_none(tmp_path):
+    """An unset ${REELBOT_MAX_PER_DAY} expands to "" and must mean unlimited."""
+    cfg = load_config(write(tmp_path / "c.yaml", "publish:\n  max_per_day: ''\n"))
+    assert cfg.publish.max_per_day is None
+
+
+def test_lists_from_a_single_string(tmp_path):
+    cfg = load_config(
+        write(tmp_path / "c.yaml", "publish:\n  posting_hours: '9, 13,19'\n"
+                                   "caption:\n  hashtags: '#reels #shorts'\n")
+    )
+    assert cfg.publish.posting_hours == [9, 13, 19]
+    assert cfg.caption.hashtags == ["#reels", "#shorts"]
+
+
+def test_empty_list_string(tmp_path):
+    cfg = load_config(write(tmp_path / "c.yaml", "publish:\n  posting_hours: ''\n"))
+    assert cfg.publish.posting_hours == []
+
+
+def test_a_bad_number_names_the_setting(tmp_path):
+    with pytest.raises(ConfigError, match="publish.max_per_day"):
+        load_config(write(tmp_path / "c.yaml", "publish:\n  max_per_day: 'three'\n"))
+
+
+def test_a_bad_boolean_names_the_setting(tmp_path):
+    with pytest.raises(ConfigError, match="publish.share_to_feed"):
+        load_config(write(tmp_path / "c.yaml", "publish:\n  share_to_feed: 'maybe'\n"))
+
+
+def test_yaml_native_types_still_work(tmp_path):
+    cfg = load_config(
+        write(tmp_path / "c.yaml", "publish:\n  max_per_day: 5\n  posting_hours: [9, 18]\n"
+                                   "  share_to_feed: true\n")
+    )
+    assert cfg.publish.max_per_day == 5
+    assert cfg.publish.posting_hours == [9, 18]
+    assert cfg.publish.share_to_feed is True
+
+
+def test_env_configures_the_template_end_to_end(monkeypatch):
+    """The shipped template must be fully drivable from environment variables."""
+    monkeypatch.setenv("REELBOT_SOURCE_URL", "https://www.youtube.com/@mel/shorts")
+    monkeypatch.setenv("REELBOT_MAX_PER_DAY", "1")
+    monkeypatch.setenv("REELBOT_POSTING_HOURS", "9,18")
+    monkeypatch.setenv("REELBOT_HASHTAGS", "#reels #fyp")
+    monkeypatch.setenv("REELBOT_BACKEND", "instagrapi")
+    monkeypatch.setenv("REELBOT_PRESET", "veryfast")
+
+    template = Path(__file__).resolve().parent.parent / "reelbot" / "templates" / "config.example.yaml"
+    cfg = load_config(template)
+
+    assert cfg.sources[0].url == "https://www.youtube.com/@mel/shorts"
+    assert cfg.sources[0].limit == 20            # untouched default, still an int
+    assert cfg.publish.max_per_day == 1
+    assert cfg.publish.posting_hours == [9, 18]
+    assert cfg.caption.hashtags == ["#reels", "#fyp"]
+    assert cfg.publish.backend == "instagrapi"
+    assert cfg.media.preset == "veryfast"

@@ -203,6 +203,66 @@ Either way, approvals stay manual: the scheduled run only ever acts on what you
 already approved, and new discoveries pile up in `pending` until you look at
 them. Check in with `reelbot status`.
 
+## CasaOS (one-click-ish)
+
+CasaOS pulls images rather than building them, so the image is published to
+GitHub Container Registry by [a workflow](.github/workflows/docker.yml) on
+every push. Once it has run at least once:
+
+1. **Make the package public** (only needed if the repo is private) —
+   github.com/users/The-Tinhorn/packages → `reels` → Package settings →
+   Change visibility → Public. Otherwise run
+   `docker login ghcr.io` on the CasaOS box first.
+2. In CasaOS: **App Store → Custom Install** (the ⊕ at the top right) →
+   switch to the YAML/import view → paste
+   [`docker-compose.casaos.yml`](docker-compose.casaos.yml).
+3. Fill in the settings it shows you, at minimum:
+   - `REELBOT_SOURCE_URL` — the channel to watch
+   - `IG_USERNAME` / `IG_PASSWORD`
+   - `REELBOT_REVIEW_PASSWORD` — the approval page refuses to start without one
+   - `TZ` — so posting hours mean your local time
+4. Install, then click the tile. It opens the approval queue.
+
+Leave `REELBOT_BACKEND` on `dryrun` at first — nothing is posted in that mode,
+so you can watch what it picks and check the captions. Switch to `instagrapi`
+when you're happy, and restart the app.
+
+It's one container: the pipeline loops hourly and serves the approval page from
+the same process. Everything it writes lives in `/DATA/AppData/reelbot`.
+
+### Configuring it without touching files
+
+Every setting worth changing is an environment variable, so it can all be done
+from the CasaOS app settings:
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `REELBOT_SOURCE_URL` | — | Channel, playlist or search URL to watch |
+| `REELBOT_BACKEND` | `dryrun` | `dryrun` posts nothing; `instagrapi` posts for real |
+| `REELBOT_MAX_PER_DAY` | `3` | Posts per 24h. Empty = unlimited, `0` = paused |
+| `REELBOT_MIN_MINUTES_BETWEEN_POSTS` | `90` | Minimum gap between posts |
+| `REELBOT_POSTING_HOURS` | any | e.g. `9,13,19` — local time |
+| `REELBOT_HASHTAGS` | `#reels #shorts` | Appended to every caption |
+| `REELBOT_MAX_DURATION` | `90` | Skip anything longer, in seconds |
+| `REELBOT_PUBLISHED_WITHIN_DAYS` | `30` | Ignore older Shorts. Empty = no limit |
+| `REELBOT_PRESET` | `medium` | `veryfast` on a Pi |
+| `REELBOT_REVIEW_PASSWORD` | — | Required for the approval page |
+| `IG_USERNAME` / `IG_PASSWORD` | — | Your Instagram login |
+| `IG_TOTP_SEED` | — | 2FA seed key, if the account has 2FA |
+| `TZ` | `UTC` | Your timezone |
+
+The container writes `config.yaml` into the volume on first start if it isn't
+there. Edit that file directly for anything not in the table — it's the full
+configuration, and environment variables simply fill in its placeholders.
+
+To run a one-off command against a running app:
+
+```bash
+docker exec reelbot reelbot status
+docker exec reelbot reelbot discover
+docker exec reelbot reelbot list --status posted
+```
+
 ## Docker (and Raspberry Pi)
 
 A Pi is a good home for this — it's always on, and the workload is mostly
@@ -304,7 +364,7 @@ git-ignored, as are `.env` and the saved session.
 pip install pytest && pytest
 ```
 
-96 tests. They run offline — the yt-dlp network call is the only thing faked.
+107 tests. They run offline — the yt-dlp network call is the only thing faked.
 `tests/test_integration.py` drives the real pipeline end to end, including a
 real ffmpeg re-encode and the real review server; the ffmpeg-dependent tests
 skip themselves if it isn't installed.

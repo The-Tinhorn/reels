@@ -283,3 +283,31 @@ def test_is_loopback():
     assert review.is_loopback("::1") is True
     assert review.is_loopback("0.0.0.0") is False
     assert review.is_loopback("192.168.1.50") is False
+
+
+def test_run_can_serve_the_review_ui_from_the_same_process(cfg, store):
+    """The single-container deployment: one process loops and serves approvals."""
+    store.add_candidate(make_video("short1", title="Cats being dramatic"))
+    cfg.review.password = "hunter2"
+
+    httpd = review.serve_in_background(cfg, store, host="127.0.0.1", port=0)
+    try:
+        url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+        request = urllib.request.Request(url, headers=_auth_header("hunter2"))
+        with urllib.request.urlopen(request, timeout=10) as resp:
+            assert resp.status == 200
+            assert "Cats being dramatic" in resp.read().decode()
+
+        # And the pipeline still runs while it is listening.
+        summary = pipeline.run_once(cfg, store, do_discover=False, publisher=None,
+                                    do_publish=False)
+        assert summary["pending"] == 1
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_background_review_refuses_an_unprotected_public_bind(cfg, store):
+    cfg.review.password = ""
+    with pytest.raises(review.ReviewError):
+        review.serve_in_background(cfg, store, host="0.0.0.0")

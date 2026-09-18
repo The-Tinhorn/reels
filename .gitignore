@@ -5,6 +5,7 @@ data/
 *.jpg
 *.jpeg
 *.png
+!assets/*.png
 *.part
 *.info.json
 

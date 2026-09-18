@@ -247,20 +247,39 @@ def cmd_run(args) -> int:
     with store:
         if args.dry_run:
             cfg.publish.backend = "dryrun"
+
+        httpd = None
+        if args.with_review:
+            # One process serving the approval UI while the pipeline loops —
+            # this is what lets a single container do the whole job.
+            try:
+                httpd = review.serve_in_background(
+                    cfg, store, host=args.review_host, password=args.review_password
+                )
+            except review.ReviewError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            print(f"Review UI at {httpd.reelbot_url}")
+
         kwargs = dict(
             do_discover=not args.no_discover,
             do_download=not args.no_download,
             do_publish=not args.no_publish,
             publish_limit=args.limit,
         )
-        if args.loop:
-            pipeline.run_loop(cfg, store, interval_minutes=args.interval, **kwargs)
-        else:
-            summary = pipeline.run_once(cfg, store, **kwargs)
-            print(
-                f"discovered {summary['discovered']}, downloaded {summary['downloaded']}, "
-                f"posted {summary['published']}, {summary['pending']} awaiting review"
-            )
+        try:
+            if args.loop:
+                pipeline.run_loop(cfg, store, interval_minutes=args.interval, **kwargs)
+            else:
+                summary = pipeline.run_once(cfg, store, **kwargs)
+                print(
+                    f"discovered {summary['discovered']}, downloaded {summary['downloaded']}, "
+                    f"posted {summary['published']}, {summary['pending']} awaiting review"
+                )
+        finally:
+            if httpd is not None:
+                httpd.shutdown()
+                httpd.server_close()
     return 0
 
 
@@ -418,6 +437,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-download", action="store_true")
     p.add_argument("--no-publish", action="store_true")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--with-review", action="store_true",
+                   help="also serve the approval UI from this process")
+    p.add_argument("--review-host", help="bind address for --with-review")
+    p.add_argument("--review-password", help="password for --with-review")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("retry", parents=[common], help="re-queue failed videos")

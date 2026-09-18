@@ -13,6 +13,7 @@ import ipaddress
 import json
 import logging
 import mimetypes
+import threading
 import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -307,15 +308,15 @@ class ReviewHandler(BaseHTTPRequestHandler):
         self._redirect(referer)
 
 
-def serve(
+def build_server(
     cfg: Config,
     store: Store,
     host: Optional[str] = None,
     port: Optional[int] = None,
-    open_browser: bool = True,
     password: Optional[str] = None,
     allow_insecure: bool = False,
-) -> None:
+) -> ThreadingHTTPServer:
+    """Construct the review server without starting it."""
     host = host or cfg.review.host
     port = port if port is not None else cfg.review.port
     password = cfg.review.password if password is None else password
@@ -336,11 +337,46 @@ def serve(
         {"cfg": cfg, "store": store, "password": password},
     )
     httpd = ThreadingHTTPServer((host, port), handler)
-    url = f"http://{host}:{port}/"
+    httpd.reelbot_url = f"http://{host}:{port}/"
+    httpd.reelbot_password = password
+    return httpd
+
+
+def serve_in_background(
+    cfg: Config,
+    store: Store,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    password: Optional[str] = None,
+    allow_insecure: bool = False,
+) -> ThreadingHTTPServer:
+    """Run the review UI on a daemon thread, alongside the pipeline loop.
+
+    One container can then serve the approval queue and keep posting, which is
+    how the single-service Docker/CasaOS deployment works.
+    """
+    httpd = build_server(cfg, store, host, port, password, allow_insecure)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True, name="reelbot-review")
+    thread.start()
+    log.info("review UI listening on %s", httpd.reelbot_url)
+    return httpd
+
+
+def serve(
+    cfg: Config,
+    store: Store,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
+    open_browser: bool = True,
+    password: Optional[str] = None,
+    allow_insecure: bool = False,
+) -> None:
+    httpd = build_server(cfg, store, host, port, password, allow_insecure)
+    url = httpd.reelbot_url
     print(f"Review UI at {url}  (Ctrl-C to stop)")
-    if password:
+    if httpd.reelbot_password:
         print("Password protected — any username, the password from your config.")
-    elif not is_loopback(host):
+    elif not is_loopback(httpd.server_address[0]):
         print("WARNING: no password set; anyone who can reach this port can post.")
     if open_browser:
         try:

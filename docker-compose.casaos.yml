@@ -1,0 +1,150 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# reelbot for CasaOS
+#
+# CasaOS ▸ App Store ▸ Custom Install (the ⊕ in the corner) ▸ paste this in.
+# Nothing else to do: the container writes its own config on first start, and
+# every setting below is editable in the CasaOS app settings afterwards.
+#
+# Fill in at minimum: REELBOT_SOURCE_URL, IG_USERNAME, IG_PASSWORD,
+# REELBOT_REVIEW_PASSWORD. Leave REELBOT_BACKEND on `dryrun` until you have
+# watched it pick videos you like, then change it to `instagrapi`.
+# ─────────────────────────────────────────────────────────────────────────────
+name: reelbot
+
+services:
+  reelbot:
+    image: ghcr.io/the-tinhorn/reels:latest
+    container_name: reelbot
+    restart: unless-stopped
+    ports:
+      # The approval queue. LAN only — do not forward this to the internet.
+      - "8765:8765"
+    volumes:
+      # Config, database, downloads and the saved Instagram session.
+      - /DATA/AppData/reelbot:/data
+    environment:
+      TZ: Europe/London
+
+      # ---- what to watch -------------------------------------------------
+      REELBOT_SOURCE_URL: "https://www.youtube.com/@YOUR_HANDLE/shorts"
+      REELBOT_MAX_DURATION: "90"
+      REELBOT_PUBLISHED_WITHIN_DAYS: "30"
+
+      # ---- Instagram -----------------------------------------------------
+      IG_USERNAME: ""
+      IG_PASSWORD: ""
+      IG_TOTP_SEED: ""                      # only if the account has 2FA
+      REELBOT_BACKEND: "dryrun"             # dryrun until you trust it, then instagrapi
+
+      # ---- how often to post ---------------------------------------------
+      REELBOT_MAX_PER_DAY: "1"
+      REELBOT_MIN_MINUTES_BETWEEN_POSTS: "180"
+      REELBOT_POSTING_HOURS: ""             # e.g. "9,13,19" — empty means any hour
+
+      # ---- captions ------------------------------------------------------
+      REELBOT_HASHTAGS: "#reels #shorts"
+
+      # ---- the approval UI -----------------------------------------------
+      REELBOT_REVIEW_PASSWORD: ""           # REQUIRED — the UI will not start without it
+
+      # ---- Raspberry Pi --------------------------------------------------
+      REELBOT_PRESET: "veryfast"            # much quicker encodes on a Pi
+
+    healthcheck:
+      test: ["CMD", "reelbot", "status"]
+      interval: 5m
+      timeout: 30s
+      start_period: 40s
+
+    x-casaos:
+      envs:
+        - container: REELBOT_SOURCE_URL
+          description:
+            en_us: "YouTube channel or playlist to watch, e.g. https://www.youtube.com/@yourhandle/shorts"
+        - container: IG_USERNAME
+          description:
+            en_us: "Instagram username"
+        - container: IG_PASSWORD
+          description:
+            en_us: "Instagram password (stored on your own machine, never sent anywhere else)"
+        - container: IG_TOTP_SEED
+          description:
+            en_us: "Two-factor seed key — only if your account has 2FA. Not a 6-digit code."
+        - container: REELBOT_REVIEW_PASSWORD
+          description:
+            en_us: "REQUIRED. Password for the approval page."
+        - container: REELBOT_BACKEND
+          description:
+            en_us: "dryrun (nothing is posted) or instagrapi (posts for real)"
+        - container: REELBOT_MAX_PER_DAY
+          description:
+            en_us: "Most Reels to post in 24 hours. Start at 1."
+        - container: REELBOT_MIN_MINUTES_BETWEEN_POSTS
+          description:
+            en_us: "Minimum gap between posts, in minutes"
+        - container: REELBOT_POSTING_HOURS
+          description:
+            en_us: "Hours posting is allowed, e.g. 9,13,19. Empty means any hour."
+        - container: REELBOT_HASHTAGS
+          description:
+            en_us: "Hashtags appended to every caption"
+        - container: REELBOT_MAX_DURATION
+          description:
+            en_us: "Skip anything longer than this many seconds (Reels cap is 90)"
+        - container: REELBOT_PUBLISHED_WITHIN_DAYS
+          description:
+            en_us: "Only consider Shorts newer than this many days. Empty for no limit."
+        - container: REELBOT_PRESET
+          description:
+            en_us: "Encoder speed: veryfast on a Pi, medium on a faster machine"
+        - container: TZ
+          description:
+            en_us: "Your timezone, so posting hours mean local time"
+      ports:
+        - container: "8765"
+          description:
+            en_us: "The approval page, where you accept or reject each video"
+      volumes:
+        - container: /data
+          description:
+            en_us: "Config, queue database, downloaded videos and the Instagram session"
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: reelbot
+  author: The-Tinhorn
+  developer: The-Tinhorn
+  category: Media
+  store_app_id: reelbot
+  index: /
+  port_map: "8765"
+  scheme: http
+  icon: https://raw.githubusercontent.com/The-Tinhorn/reels/claude/youtube-shorts-instagram-downloader-1lihx5/assets/icon.png
+  thumbnail: ""
+  screenshot_link: []
+  title:
+    en_us: reelbot
+  tagline:
+    en_us: Approve YouTube Shorts, post them as Instagram Reels
+  description:
+    en_us: >-
+      Watches a YouTube channel for new Shorts and queues them for you to
+      approve. Nothing is downloaded or posted until you say so — open the app
+      and accept or reject each one, editing the caption if you like. Approved
+      videos are converted to Reels format and posted on a schedule you set.
+      Posts using your own Instagram login, so no Meta developer account or API
+      keys are needed.
+  tips:
+    custom: |
+      Set REELBOT_SOURCE_URL to the channel you want to watch, fill in your
+      Instagram login, and choose a password for the approval page — it will
+      not start without one.
+
+      Leave REELBOT_BACKEND on "dryrun" at first. Nothing is posted in that
+      mode, so you can watch what it picks and check the captions. Switch it to
+      "instagrapi" when you are happy.
+
+      Repost only what is yours or what you have permission to use. The
+      approval queue is there so that decision is yours, every time.
