@@ -205,23 +205,28 @@ them. Check in with `reelbot status`.
 
 ## CasaOS (one-click-ish)
 
-CasaOS pulls images rather than building them, so the image is published to
-GitHub Container Registry by [a workflow](.github/workflows/docker.yml) on
-every push. Once it has run at least once:
+CasaOS pulls images rather than building them, so
+[a workflow](.github/workflows/docker.yml) publishes one to GitHub Container
+Registry on every push. It is already built and publicly pullable — no login
+needed:
 
-1. **Make the package public** (only needed if the repo is private) —
-   github.com/users/The-Tinhorn/packages → `reels` → Package settings →
-   Change visibility → Public. Otherwise run
-   `docker login ghcr.io` on the CasaOS box first.
-2. In CasaOS: **App Store → Custom Install** (the ⊕ at the top right) →
+```
+ghcr.io/the-tinhorn/reels:latest        linux/amd64 + linux/arm64
+```
+
+1. In CasaOS: **App Store → Custom Install** (the ⊕ at the top right) →
    switch to the YAML/import view → paste
    [`docker-compose.casaos.yml`](docker-compose.casaos.yml).
-3. Fill in the settings it shows you, at minimum:
+2. Fill in the settings it shows you, at minimum:
    - `REELBOT_SOURCE_URL` — the channel to watch
    - `IG_USERNAME` / `IG_PASSWORD`
    - `REELBOT_REVIEW_PASSWORD` — the approval page refuses to start without one
    - `TZ` — so posting hours mean your local time
-4. Install, then click the tile. It opens the approval queue.
+3. Install, then click the tile. It opens the approval queue.
+
+(If a future build ever turns the package private, CasaOS will fail to pull it.
+Flip it back at github.com/users/The-Tinhorn/packages → `reels` → Package
+settings → Change visibility → Public.)
 
 Leave `REELBOT_BACKEND` on `dryrun` at first — nothing is posted in that mode,
 so you can watch what it picks and check the captions. Switch to `instagrapi`
