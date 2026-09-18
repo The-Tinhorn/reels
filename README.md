@@ -113,7 +113,7 @@ sources:
 ```
 
 **filters** — applied at discovery; failures never reach the queue.
-`max_duration` (90s, the Reels cap), `min_duration`, `min_views`,
+`max_duration` (180s — the cap on both Reels and Shorts), `min_duration`, `min_views`,
 `published_within_days`, `title_allow`, `title_deny`. Rejects are
 remembered so an hourly run doesn't re-fetch them, but changing any filter
 clears that memory automatically, so a loosened filter takes effect on the
@@ -141,7 +141,8 @@ required before it may bind anywhere but localhost.
 **media** — normalization targets. Shorts are usually already 1080×1920
 H.264/AAC, and files that already conform are uploaded untouched. Anything else
 is re-encoded to 9:16 with a blurred fill (`background: black` for letterbox
-bars instead), trimmed to `max_duration`, and given a silent audio track if it
+bars instead), trimmed to `max_duration` (with a warning if that actually cuts
+anything), and given a silent audio track if it
 has none — Instagram rejects Reels without audio.
 
 ## Posting without Meta API keys
@@ -249,7 +250,7 @@ from the CasaOS app settings:
 | `REELBOT_MIN_MINUTES_BETWEEN_POSTS` | `90` | Minimum gap between posts |
 | `REELBOT_POSTING_HOURS` | any | e.g. `9,13,19` — local time |
 | `REELBOT_HASHTAGS` | `#reels #shorts` | Appended to every caption |
-| `REELBOT_MAX_DURATION` | `90` | Skip anything longer, in seconds |
+| `REELBOT_MAX_DURATION` | `180` | Skip anything longer, in seconds. Also the trim ceiling. |
 | `REELBOT_PUBLISHED_WITHIN_DAYS` | none | Ignore Shorts older than N days. Empty = no limit |
 | `REELBOT_PRESET` | `medium` | `veryfast` on a Pi |
 | `REELBOT_REVIEW_PASSWORD` | — | Required for the approval page |

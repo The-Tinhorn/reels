@@ -14,7 +14,7 @@ def write(path: Path, text: str) -> Path:
 def test_defaults_when_file_is_nearly_empty(tmp_path):
     cfg = load_config(write(tmp_path / "c.yaml", "sources: []\n"))
     assert cfg.publish.backend == "dryrun"
-    assert cfg.filters.max_duration == 90
+    assert cfg.filters.max_duration == 180
     assert cfg.media.target_height == 1920
 
 

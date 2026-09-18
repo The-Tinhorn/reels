@@ -75,7 +75,9 @@ class Source:
 
 @dataclass
 class Filters:
-    max_duration: int = 90          # Reels hard limit is 90s for most accounts
+    # Instagram raised Reels from 90s to 3 minutes, and YouTube caps Shorts
+    # at 3 minutes too, so this lets through anything Shorts can produce.
+    max_duration: int = 180
     min_duration: int = 3
     min_views: int = 0
     published_within_days: Optional[int] = None
@@ -100,7 +102,9 @@ class MediaConfig:
     normalize: bool = True
     target_width: int = 1080
     target_height: int = 1920
-    max_duration: int = 90
+    # Kept in step with filters.max_duration: anything longer was already
+    # skipped at discovery, so the ffmpeg trim is only ever a safety net.
+    max_duration: int = 180
     fps: int = 30
     crf: int = 23
     # x264 speed/size trade-off. `veryfast` is roughly 4x quicker than

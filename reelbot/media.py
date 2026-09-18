@@ -182,6 +182,13 @@ def normalize(
         "-movflags", "+faststart",
     ]
     if cfg.max_duration:
+        if info.duration > cfg.max_duration + 0.5:
+            # Silently shipping a truncated video is worse than a loud warning.
+            log.warning(
+                "%s is %.0fs and will be cut to %ds — raise media.max_duration "
+                "(REELBOT_MAX_DURATION) to keep all of it",
+                src.name, info.duration, cfg.max_duration,
+            )
         cmd += ["-t", str(cfg.max_duration)]
     if not info.has_audio:
         cmd += ["-shortest"]

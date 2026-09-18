@@ -23,7 +23,7 @@ sources:
 # ---------------------------------------------------------------- filters
 # Applied at discovery time. Anything that fails never reaches the review queue.
 filters:
-  max_duration: "${REELBOT_MAX_DURATION:-90}"   # Reels cap; keeps out full uploads
+  max_duration: "${REELBOT_MAX_DURATION:-180}"  # Reels and Shorts both cap at 3 min
   min_duration: 3
   min_views: "${REELBOT_MIN_VIEWS:-0}"
   published_within_days: "${REELBOT_PUBLISHED_WITHIN_DAYS:-}"   # empty = no age limit
@@ -47,7 +47,7 @@ media:
   normalize: true
   target_width: 1080
   target_height: 1920
-  max_duration: 90
+  max_duration: "${REELBOT_MAX_DURATION:-180}"  # same value: the trim is a safety net
   fps: 30
   crf: 23
   preset: "${REELBOT_PRESET:-medium}"   # veryfast on a Pi — far quicker encodes

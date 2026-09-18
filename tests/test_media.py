@@ -135,3 +135,31 @@ def test_cover_frame(tmp_path):
     src = make_test_video(tmp_path / "in.mp4", seconds=2)
     out = media.cover_frame(src, tmp_path / "cover.jpg", cfg, at=0.5)
     assert out and out.exists() and out.stat().st_size > 0
+
+
+@needs_ffmpeg
+def test_normalize_warns_when_it_actually_cuts_the_video(tmp_path, caplog):
+    """Truncating a post silently is worse than a loud warning."""
+    cfg = MediaConfig(target_width=360, target_height=640, crf=32, max_duration=2)
+    src = make_test_video(tmp_path / "long.mp4", width=360, height=640, seconds=5)
+
+    with caplog.at_level("WARNING"):
+        media.normalize(src, tmp_path / "out.mp4", cfg)
+    assert "will be cut to 2s" in caplog.text
+
+
+@needs_ffmpeg
+def test_normalize_is_quiet_when_nothing_is_cut(tmp_path, caplog):
+    cfg = MediaConfig(target_width=360, target_height=640, crf=32, max_duration=180)
+    src = make_test_video(tmp_path / "short.mp4", width=360, height=640, seconds=2)
+
+    with caplog.at_level("WARNING"):
+        media.normalize(src, tmp_path / "out.mp4", cfg)
+    assert "will be cut" not in caplog.text
+
+
+def test_the_two_max_duration_defaults_match():
+    """A filter that lets a video through must not then be trimmed by ffmpeg."""
+    from reelbot.config import Filters, MediaConfig as MC
+
+    assert Filters().max_duration == MC().max_duration

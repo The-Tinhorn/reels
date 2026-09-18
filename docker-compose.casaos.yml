@@ -27,7 +27,7 @@ services:
 
       # ---- what to watch -------------------------------------------------
       REELBOT_SOURCE_URL: "https://www.youtube.com/@YOUR_HANDLE/shorts"
-      REELBOT_MAX_DURATION: "90"
+      REELBOT_MAX_DURATION: "180"           # 3 min: the Reels and Shorts cap
       REELBOT_PUBLISHED_WITHIN_DAYS: ""     # empty = no age limit
 
       # ---- Instagram -----------------------------------------------------
@@ -96,7 +96,7 @@ services:
             en_us: "Hashtags appended to every caption"
         - container: REELBOT_MAX_DURATION
           description:
-            en_us: "Skip anything longer than this many seconds (Reels cap is 90)"
+            en_us: "Skip anything longer than this many seconds (Reels and Shorts cap at 180)"
         - container: REELBOT_PUBLISHED_WITHIN_DAYS
           description:
             en_us: "Only consider Shorts newer than this many days. Empty for no limit."
