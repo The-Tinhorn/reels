@@ -26,7 +26,7 @@ filters:
   max_duration: "${REELBOT_MAX_DURATION:-90}"   # Reels cap; keeps out full uploads
   min_duration: 3
   min_views: "${REELBOT_MIN_VIEWS:-0}"
-  published_within_days: "${REELBOT_PUBLISHED_WITHIN_DAYS:-30}"  # empty = no age limit
+  published_within_days: "${REELBOT_PUBLISHED_WITHIN_DAYS:-}"   # empty = no age limit
   title_allow: []           # if non-empty, the title must contain one of these
   title_deny: ["#ad", "sponsored"]
 

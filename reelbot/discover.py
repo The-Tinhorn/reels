@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -184,12 +187,39 @@ def discover_source(
     return added, skipped
 
 
+FILTER_FINGERPRINT_KEY = "filters_fingerprint"
+
+
+def filters_fingerprint(filters: Filters) -> str:
+    return hashlib.sha256(
+        json.dumps(asdict(filters), sort_keys=True, default=str).encode()
+    ).hexdigest()[:16]
+
+
+def sync_filters(cfg: Config, store: Store) -> bool:
+    """Forget remembered rejects when the filters themselves have changed.
+
+    Without this, loosening a filter appears to do nothing: everything it
+    previously rejected is skipped before the new filter is ever applied.
+    """
+    fingerprint = filters_fingerprint(cfg.filters)
+    if store.get_meta(FILTER_FINGERPRINT_KEY) == fingerprint:
+        return False
+
+    forgotten = store.clear_filtered()
+    store.set_meta(FILTER_FINGERPRINT_KEY, fingerprint)
+    if forgotten:
+        log.info("filters changed — re-checking %d previously filtered video(s)", forgotten)
+    return True
+
+
 def discover_all(
     cfg: Config,
     store: Store,
     extractor: Optional[Extractor] = None,
 ) -> Tuple[int, int]:
     extractor = extractor or extract
+    sync_filters(cfg, store)
     total_added = total_skipped = 0
     for source in cfg.sources:
         try:

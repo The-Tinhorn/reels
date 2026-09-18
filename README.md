@@ -115,8 +115,9 @@ sources:
 **filters** — applied at discovery; failures never reach the queue.
 `max_duration` (90s, the Reels cap), `min_duration`, `min_views`,
 `published_within_days`, `title_allow`, `title_deny`. Rejects are
-remembered, so an hourly run doesn't re-fetch them; after loosening a
-filter, run `reelbot discover --refilter` to give them another look.
+remembered so an hourly run doesn't re-fetch them, but changing any filter
+clears that memory automatically, so a loosened filter takes effect on the
+next pass. `reelbot discover --refilter` forces the same thing by hand.
 
 **caption** — a template over the video's metadata. Available tokens:
 `{title}` `{channel}` `{channel_url}` `{url}` `{description}` `{views}`
@@ -249,7 +250,7 @@ from the CasaOS app settings:
 | `REELBOT_POSTING_HOURS` | any | e.g. `9,13,19` — local time |
 | `REELBOT_HASHTAGS` | `#reels #shorts` | Appended to every caption |
 | `REELBOT_MAX_DURATION` | `90` | Skip anything longer, in seconds |
-| `REELBOT_PUBLISHED_WITHIN_DAYS` | `30` | Ignore older Shorts. Empty = no limit |
+| `REELBOT_PUBLISHED_WITHIN_DAYS` | none | Ignore Shorts older than N days. Empty = no limit |
 | `REELBOT_PRESET` | `medium` | `veryfast` on a Pi |
 | `REELBOT_REVIEW_PASSWORD` | — | Required for the approval page |
 | `IG_USERNAME` / `IG_PASSWORD` | — | Your Instagram login |

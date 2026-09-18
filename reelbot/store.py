@@ -72,6 +72,13 @@ CREATE TABLE IF NOT EXISTS filtered (
     ts      TEXT NOT NULL
 );
 
+-- Small key/value scratchpad (currently: the fingerprint of the filter
+-- settings the `filtered` table was built with).
+CREATE TABLE IF NOT EXISTS meta (
+    key    TEXT PRIMARY KEY,
+    value  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     video_id  TEXT,
@@ -257,6 +264,16 @@ class Store:
         with self._tx() as conn:
             cursor = conn.execute("DELETE FROM filtered")
             return cursor.rowcount
+
+    def get_meta(self, key: str) -> Optional[str]:
+        row = self.conn.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+    def set_meta(self, key: str, value: str) -> None:
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value)
+            )
 
     def log(self, video_id: Optional[str], kind: str, detail: Any = None) -> None:
         if detail is not None and not isinstance(detail, str):

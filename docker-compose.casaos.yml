@@ -28,7 +28,7 @@ services:
       # ---- what to watch -------------------------------------------------
       REELBOT_SOURCE_URL: "https://www.youtube.com/@YOUR_HANDLE/shorts"
       REELBOT_MAX_DURATION: "90"
-      REELBOT_PUBLISHED_WITHIN_DAYS: "30"
+      REELBOT_PUBLISHED_WITHIN_DAYS: ""     # empty = no age limit
 
       # ---- Instagram -----------------------------------------------------
       IG_USERNAME: ""

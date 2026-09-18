@@ -178,3 +178,47 @@ def test_clear_filtered_gives_changed_filters_a_fresh_look(cfg, store):
     assert discover_source(cfg, store, SOURCE, extractor=extractor) == (0, 1)  # still skipped
     assert store.clear_filtered() == 1
     assert discover_source(cfg, store, SOURCE, extractor=extractor) == (1, 0)
+
+
+def test_changing_a_filter_re_checks_what_it_rejected(cfg, store):
+    """Loosening a filter must take effect without anyone passing --refilter."""
+    from reelbot.discover import discover_all
+
+    cfg.sources = [SOURCE]
+    cfg.filters.published_within_days = 30
+    old = (datetime.now(timezone.utc) - timedelta(days=200)).strftime("%Y%m%d")
+    extractor = fake_extractor([entry(upload_date=old)])
+
+    assert discover_all(cfg, store, extractor=extractor) == (0, 1)
+    assert store.is_filtered("vid1") is True
+
+    cfg.filters.published_within_days = None          # "stop filtering by age"
+    assert discover_all(cfg, store, extractor=extractor) == (1, 0)
+    assert store.get("vid1") is not None
+
+
+def test_unchanged_filters_keep_the_rejects_remembered(cfg, store):
+    """The whole point of remembering them is not re-fetching every hour."""
+    from reelbot.discover import discover_all
+
+    cfg.sources = [SOURCE]
+    cfg.filters.max_duration = 10
+    extractor = fake_extractor([entry(duration=60)])
+
+    assert discover_all(cfg, store, extractor=extractor) == (0, 1)
+    assert discover_all(cfg, store, extractor=extractor) == (0, 1)
+    assert store.is_filtered("vid1") is True
+
+
+def test_fingerprint_tracks_every_filter_field(cfg, store):
+    from reelbot.config import Filters
+    from reelbot.discover import filters_fingerprint
+
+    base = Filters()
+    assert filters_fingerprint(base) == filters_fingerprint(Filters())
+    for field, value in [
+        ("max_duration", 60), ("min_duration", 1), ("min_views", 10),
+        ("published_within_days", 7), ("title_allow", ["x"]), ("title_deny", ["y"]),
+    ]:
+        changed = Filters(**{**base.__dict__, field: value})
+        assert filters_fingerprint(changed) != filters_fingerprint(base), field
