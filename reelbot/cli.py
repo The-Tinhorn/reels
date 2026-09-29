@@ -74,7 +74,7 @@ def cmd_init(args) -> int:
             env_dest.chmod(0o600)
         except OSError:
             pass
-        print(f"wrote {env_dest} (fill in your Instagram login)")
+        print(f"wrote {env_dest} (fill in your Meta Page token and Instagram account ID)")
 
     print(textwrap.dedent(f"""
         wrote {dest}
@@ -86,7 +86,7 @@ def cmd_init(args) -> int:
           4. reelbot run               download the approved ones and post them
 
         publish.backend starts as `dryrun`, so nothing is posted until you
-        change it to `instagrapi` and run `reelbot login`.
+        change it to `graph` and verify the token with `reelbot login`.
     """).strip())
     return 0
 
@@ -322,7 +322,7 @@ def cmd_login(args) -> int:
     cfg, store = _open(args)
     with store:
         if cfg.publish.backend == "dryrun":
-            print("publish.backend is `dryrun` — set it to `instagrapi` first")
+            print("publish.backend is `dryrun` — set it to `graph` first")
             return 1
         try:
             publisher = get_publisher(cfg)
@@ -332,7 +332,10 @@ def cmd_login(args) -> int:
         except PublishError as exc:
             print(f"login failed: {exc}", file=sys.stderr)
             return 1
-        print("login ok — session saved")
+        if cfg.publish.backend == "graph":
+            print("Graph API token verified")
+        else:
+            print("login ok — session saved")
     return 0
 
 
@@ -450,7 +453,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--events", type=int, default=0, help="also show N recent events")
     p.set_defaults(func=cmd_status)
 
-    p = sub.add_parser("login", parents=[common], help="log in to Instagram and save the session")
+    p = sub.add_parser("login", parents=[common], help="verify Instagram publishing credentials")
     p.add_argument("--force", action="store_true", help="ignore the saved session")
     p.set_defaults(func=cmd_login)
 

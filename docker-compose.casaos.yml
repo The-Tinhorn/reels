@@ -5,9 +5,9 @@
 # Nothing else to do: the container writes its own config on first start, and
 # every setting below is editable in the CasaOS app settings afterwards.
 #
-# Fill in at minimum: REELBOT_SOURCE_URL, IG_USERNAME, IG_PASSWORD,
-# REELBOT_REVIEW_PASSWORD. Leave REELBOT_BACKEND on `dryrun` until you have
-# watched it pick videos you like, then change it to `instagrapi`.
+# Fill in at minimum: REELBOT_SOURCE_URL, IG_USER_ID, IG_ACCESS_TOKEN,
+# REELBOT_REVIEW_PASSWORD. Leave REELBOT_BACKEND on `dryrun` while you review
+# the queue, then change it to `graph` to publish through Meta.
 # ─────────────────────────────────────────────────────────────────────────────
 name: reelbot
 
@@ -20,7 +20,7 @@ services:
       # The approval queue. LAN only — do not forward this to the internet.
       - "8765:8765"
     volumes:
-      # Config, database, downloads and the saved Instagram session.
+      # Config, database and downloaded videos.
       - /DATA/AppData/reelbot:/data
     environment:
       TZ: Europe/London
@@ -31,10 +31,9 @@ services:
       REELBOT_PUBLISHED_WITHIN_DAYS: ""     # empty = no age limit
 
       # ---- Instagram -----------------------------------------------------
-      IG_USERNAME: ""
-      IG_PASSWORD: ""
-      IG_TOTP_SEED: ""                      # only if the account has 2FA
-      REELBOT_BACKEND: "dryrun"             # dryrun until you trust it, then instagrapi
+      IG_USER_ID: ""                         # Instagram account ID from Meta
+      IG_ACCESS_TOKEN: ""                    # long-lived Facebook Page token
+      REELBOT_BACKEND: "dryrun"              # switch to graph when ready to publish
 
       # ---- how often to post ---------------------------------------------
       REELBOT_MAX_PER_DAY: "1"
@@ -42,7 +41,7 @@ services:
       REELBOT_POSTING_HOURS: ""             # e.g. "9,13,19" — empty means any hour
 
       # ---- captions ------------------------------------------------------
-      REELBOT_HASHTAGS: "#reels #shorts"
+      REELBOT_CAPTION_TEMPLATE: "{title}"   # copy the YouTube title exactly
 
       # ---- the approval UI -----------------------------------------------
       REELBOT_REVIEW_PASSWORD: ""           # REQUIRED — the UI will not start without it
@@ -71,21 +70,18 @@ services:
         - container: REELBOT_SOURCE_URL
           description:
             en_us: "YouTube channel or playlist to watch, e.g. https://www.youtube.com/@yourhandle/shorts"
-        - container: IG_USERNAME
+        - container: IG_USER_ID
           description:
-            en_us: "Instagram username"
-        - container: IG_PASSWORD
+            en_us: "Instagram account ID returned by Meta Graph API"
+        - container: IG_ACCESS_TOKEN
           description:
-            en_us: "Instagram password (stored on your own machine, never sent anywhere else)"
-        - container: IG_TOTP_SEED
-          description:
-            en_us: "Two-factor seed key — only if your account has 2FA. Not a 6-digit code."
+            en_us: "Facebook Page access token with instagram_content_publish permission"
         - container: REELBOT_REVIEW_PASSWORD
           description:
             en_us: "REQUIRED. Password for the approval page."
         - container: REELBOT_BACKEND
           description:
-            en_us: "dryrun (nothing is posted) or instagrapi (posts for real)"
+            en_us: "dryrun (nothing is posted) or graph (publishes through Meta)"
         - container: REELBOT_MAX_PER_DAY
           description:
             en_us: "Most Reels to post in 24 hours. Start at 1."
@@ -95,9 +91,9 @@ services:
         - container: REELBOT_POSTING_HOURS
           description:
             en_us: "Hours posting is allowed, e.g. 9,13,19. Empty means any hour."
-        - container: REELBOT_HASHTAGS
+        - container: REELBOT_CAPTION_TEMPLATE
           description:
-            en_us: "Hashtags appended to every caption"
+            en_us: "Caption format; {title} copies the YouTube title"
         - container: REELBOT_MAX_DURATION
           description:
             en_us: "Skip anything longer than this many seconds (Reels and Shorts cap at 180)"
@@ -126,7 +122,7 @@ services:
       volumes:
         - container: /data
           description:
-            en_us: "Config, queue database, downloaded videos and the Instagram session"
+            en_us: "Config, queue database and downloaded videos"
 
 x-casaos:
   architectures:
@@ -153,17 +149,16 @@ x-casaos:
       approve. Nothing is downloaded or posted until you say so — open the app
       and accept or reject each one, editing the caption if you like. Approved
       videos are converted to Reels format and posted on a schedule you set.
-      Posts using your own Instagram login, so no Meta developer account or API
-      keys are needed.
+      Posts through Meta's official Instagram API using a Page access token.
   tips:
     custom: |
       Set REELBOT_SOURCE_URL to the channel you want to watch, fill in your
-      Instagram login, and choose a password for the approval page — it will
-      not start without one.
+      Instagram account ID and Page access token, and choose a password for
+      the approval page — it will not start without one.
 
       Leave REELBOT_BACKEND on "dryrun" at first. Nothing is posted in that
       mode, so you can watch what it picks and check the captions. Switch it to
-      "instagrapi" when you are happy.
+      "graph" when you are happy.
 
       Repost only what is yours or what you have permission to use. The
       approval queue is there so that decision is yours, every time.

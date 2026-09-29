@@ -8,7 +8,7 @@ changing anything — most of the non-obvious code exists because something brok
 Repository: `The-Tinhorn/reels`
 Working branch: `claude/youtube-shorts-instagram-downloader-1lihx5` (not yet merged to `main`)
 Image: `ghcr.io/the-tinhorn/reels:latest` (linux/amd64 + linux/arm64, public, no login to pull)
-~3,000 lines of Python, 124 tests, all offline.
+~3,000 lines of Python; offline tests cover the upload flow with mocked Meta responses.
 
 ---
 
@@ -24,12 +24,13 @@ discover ──> pending ──[human approves]──> approved ──> download
                  └──[human rejects]──> rejected        (never downloaded, never posted)
 ```
 
-It posts using the account owner's own Instagram login via `instagrapi`, which
-speaks Instagram's private mobile API. **No Meta developer account, app, or API
-token is required.** That was an explicit product requirement, not an accident —
-see §4.
+The owner has now chosen Meta's official Instagram API after the private
+`instagrapi` login triggered account warnings. CasaOS uses the `graph` backend
+for real publishing. It uploads the downloaded local file through Meta's
+resumable upload API, using a Facebook Page access token. `instagrapi` remains
+available for legacy local installs.
 
-The owner is a content creator reposting **her own** YouTube Shorts as Reels.
+The owner is a content creator reposting **their own** YouTube Shorts as Reels.
 The approval queue exists so the rights decision is made per video by a person.
 
 ---
@@ -42,8 +43,7 @@ Runs on a Raspberry Pi under **CasaOS**, installed from
 - One container. The pipeline loops hourly *and* serves the approval web UI
   from the same process (`run --loop --with-review`).
 - All mutable state lives in `/DATA/AppData/reelbot` on the host, mounted at
-  `/data`: `config.yaml`, `.env`, `data/reelbot.db`, `data/downloads/`,
-  `data/ig_session.json`.
+  `/data`: `config.yaml`, `.env`, `data/reelbot.db`, `data/downloads/`.
 - Every setting is an environment variable, editable in the CasaOS GUI. The
   container writes its own `config.yaml` on first start.
 - Pushing to the branch rebuilds and republishes the image automatically
@@ -68,9 +68,8 @@ reelbot/
   caption.py      caption templating
   publishers/
     base.py             Publisher protocol + PublishResult
-    instagrapi_backend  private mobile API, no Meta keys  ← the default in production
-    graph_backend       official Meta Graph API (needs keys, a Business account,
-                        and a public HTTPS URL Meta can fetch the file from)
+    instagrapi_backend  legacy private mobile API
+    graph_backend       official Meta API; direct resumable upload of local video
     dryrun              writes what it would post; the default in a fresh config
   pipeline.py     orchestration, rate limits, retries
   review.py       the local approval UI (stdlib http.server, HTTP Basic auth)
@@ -100,19 +99,19 @@ deliberate and both are tested. The approval writes `reviewed_by` and
 `reviewed_at`. `auto_approve` is per-source and off by default — it exists only
 for a channel whose content is the operator's own.
 
-**2. `instagrapi` is the default, not the Graph API.** The whole point is
-posting without Meta API keys. The Graph backend exists as an option; do not
-promote it to default.
+**2. New installs start in `dryrun`; CasaOS uses `graph` for real posts.**
+The owner selected Meta's supported API. The older `instagrapi` path remains
+for compatibility and should not be selected for this account.
 
-**3. The Instagram session is persisted and reused.**
+**3. Legacy `instagrapi` sessions are persisted and reused.**
 `data/ig_session.json` holds the session *and the device fingerprint*. Logging
 in fresh on every run is the fastest way to get an account action-blocked. If
 the saved session expires, the code re-logs-in **keeping the same device
 UUIDs**. Do not "simplify" this away.
 
 **4. Rate limits are a safety feature.** `max_per_day`,
-`min_minutes_between_posts`, `posting_hours`, and the random jitter in
-`instagram.delay_range` exist to keep a real account from being flagged.
+`min_minutes_between_posts`, `posting_hours`, and the legacy random jitter in
+`instagram.delay_range` protect the posting cadence.
 Defaults are deliberately conservative.
 
 **5. The review UI refuses to bind to a non-loopback address without a
@@ -212,10 +211,10 @@ If neither works, the next things to try are a different `player_client`
 combination, slowing downloads (`download.rate_limit`), or routing through a
 residential proxy.
 
-**Nothing has ever been posted to Instagram.** The `instagrapi` backend has
-never run against a real account. Expect first-run surprises: a login
-challenge, a 2FA prompt, or `clip_upload` rejecting a file. `reelbot login`
-exercises auth alone and is the right first test.
+**Nothing has ever been posted to Instagram by Reelbot.** The user has verified
+their Page token and Instagram account ID in Graph API Explorer. Reelbot's
+direct-upload path has only been tested with mocked Meta responses; the first
+real post may still surface account, format, or API errors.
 
 **The Graph backend has never been run against the real API.** It is written
 from the documented shapes; treat it as unverified.
@@ -225,12 +224,11 @@ youtube.com by network policy, so every test fakes the yt-dlp call. Everything
 downstream of that call — real ffmpeg re-encodes, the real review server — is
 exercised for real.
 
-**Config files are never migrated.** `docker-entrypoint.sh` only writes
-`config.yaml` if it is absent, so an existing install does not pick up new
-options added to the template. Workaround: rename `config.yaml` and restart to
-regenerate it. Nothing is lost, because the queue lives in the database and
-everything else comes from environment variables. A real migration step would
-be a genuine improvement.
+**Config files are not automatically migrated.** `docker-entrypoint.sh` only
+writes `config.yaml` if it is absent. Existing CasaOS installs can set
+`REELBOT_CAPTION_TEMPLATE={title}` to override the old caption template, and
+the old `graph.public_base_url` key remains accepted but unused. Check other
+older settings manually; do not rename a populated config without backing it up.
 
 ---
 
@@ -238,7 +236,7 @@ be a genuine improvement.
 
 ```bash
 pip install -r requirements.txt pytest
-pytest -q                      # 124 tests, offline, ~17s
+pytest -q                      # offline; ffmpeg tests need ffmpeg installed
 python -m pyflakes reelbot tests
 ```
 
@@ -286,20 +284,21 @@ run as root, creating root-owned files the main process cannot overwrite.
 | --- | --- | --- |
 | `REELBOT_SOURCE_URL` | — | Channel/playlist/search URL to watch |
 | `REELBOT_SOURCE_LIMIT` | `20` | How many videos back to enumerate |
-| `REELBOT_BACKEND` | `dryrun` | `dryrun` posts nothing; `instagrapi` posts for real |
+| `REELBOT_BACKEND` | `dryrun` | `dryrun` posts nothing; `graph` publishes through Meta |
+| `IG_USER_ID` | — | Instagram account ID from Meta |
+| `IG_ACCESS_TOKEN` | — | Facebook Page access token with content publishing permission |
+| `REELBOT_CAPTION_TEMPLATE` | `{title}` | Caption format, including on older installs |
 | `REELBOT_MAX_PER_DAY` | `3` | Posts per 24h. Empty = unlimited, `0` = paused |
 | `REELBOT_MIN_MINUTES_BETWEEN_POSTS` | `90` | Minimum gap |
 | `REELBOT_POSTING_HOURS` | any | e.g. `9,13,19`, local time |
 | `REELBOT_MAX_DURATION` | `180` | Skip longer videos; also the trim ceiling |
 | `REELBOT_PUBLISHED_WITHIN_DAYS` | none | Age limit. Empty = no limit |
-| `REELBOT_HASHTAGS` | `#reels #shorts` | Appended to captions |
+| `REELBOT_HASHTAGS` | `#reels #shorts` | Used only when the caption template includes `{hashtags}` |
 | `REELBOT_PRESET` | `medium` | x264 preset; `veryfast` on a Pi |
 | `REELBOT_DELETE_AFTER_POST` | `false` | Free disk once a Reel is up |
 | `REELBOT_COOKIES_FILE` | auto | `cookies.txt` beside the config is found anyway |
 | `REELBOT_PLAYER_CLIENT` | yt-dlp default | e.g. `tv` — route past the bot check |
 | `REELBOT_REVIEW_PASSWORD` | — | Required for a non-localhost review UI |
-| `IG_USERNAME` / `IG_PASSWORD` | — | Instagram login |
-| `IG_TOTP_SEED` | — | 2FA **seed key**, not a 6-digit code |
 | `PUID` / `PGID` | `1000` | Who owns the files it writes |
 | `TZ` | `UTC` | So `posting_hours` means local time |
 

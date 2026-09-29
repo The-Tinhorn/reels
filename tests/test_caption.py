@@ -9,6 +9,10 @@ def test_tokens_are_substituted():
     assert caption == "A test short by Test Channel\n#reels"
 
 
+def test_default_caption_is_only_the_youtube_title():
+    assert build_caption(make_video(title="My YouTube Short"), CaptionConfig()) == "My YouTube Short"
+
+
 def test_braces_in_the_title_do_not_break_rendering():
     cfg = CaptionConfig(template="{title}", hashtags=[])
     caption = build_caption(make_video(title="cost {50%} off {unknown}"), cfg)

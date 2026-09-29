@@ -124,7 +124,7 @@ class MediaConfig:
 
 @dataclass
 class CaptionConfig:
-    template: str = "{title}\n\n\U0001f3a5 via {channel}\n{hashtags}"
+    template: str = "{title}"
     hashtags: List[str] = field(default_factory=lambda: ["#reels", "#shorts"])
     max_length: int = 2200
     append_source_url: bool = False
@@ -163,12 +163,11 @@ class InstagramConfig:
 
 @dataclass
 class GraphConfig:
-    """Optional official Meta Graph API backend (requires API keys)."""
+    """Official Meta Graph API backend."""
 
     ig_user_id: str = ""
     access_token: str = ""
-    # Reels must be fetched by Meta from a public URL, so the normalized file
-    # has to be reachable at {public_base_url}/{filename}.
+    # Kept so existing config.yaml files still load; resumable upload does not use it.
     public_base_url: str = ""
     poll_seconds: int = 5
     poll_attempts: int = 60
@@ -312,6 +311,14 @@ def load_config(path: str | os.PathLike) -> Config:
         graph=_build(GraphConfig, raw.get("graph")),
         path=str(path.resolve()),
     )
+
+    # CasaOS keeps an existing config.yaml across image updates. This env override
+    # lets its settings switch the caption format without replacing that file.
+    caption_template = os.environ.get("REELBOT_CAPTION_TEMPLATE")
+    if caption_template:
+        cfg.caption.template = caption_template
+        if caption_template == "{title}":
+            cfg.caption.append_source_url = False
 
     if cfg.publish.backend not in {"dryrun", "instagrapi", "graph"}:
         raise ConfigError(

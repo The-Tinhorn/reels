@@ -160,7 +160,7 @@ def test_review_ui_approves_and_rejects(cfg, store):
         assert status == 200
         assert "Cats being dramatic" in page
         assert 'src="https://www.youtube.com/embed/short1"' in page   # preview
-        assert "#reels" in page                                       # caption preview
+        assert '<textarea name="caption" spellcheck="true">Cats being dramatic</textarea>' in page
 
         assert server.post(id="short1", action="approve", caption="my edited caption") == 200
         assert server.post(id="short2", action="reject") == 200

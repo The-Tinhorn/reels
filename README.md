@@ -1,8 +1,8 @@
 # reelbot
 
-Downloads YouTube Shorts you've **approved** with `yt-dlp`, re-encodes them to
-Reels spec with `ffmpeg`, and posts them to Instagram — without Meta API keys,
-a Business account, or a developer app.
+Downloads YouTube Shorts you've **approved** with `yt-dlp`, converts them to
+Reels spec with `ffmpeg`, and posts them through Meta's Instagram API. The
+default caption copies the YouTube title.
 
 ```
 discover ──> pending ──[you approve]──> approved ──> download ──> normalize ──> post
@@ -53,9 +53,9 @@ reelbot run --dry-run         # download + normalize the approved ones, post not
 `data/dryrun/`. When the captions look right, switch to real posting:
 
 ```bash
-$EDITOR .env                  # fill in IG_USERNAME / IG_PASSWORD
-$EDITOR config.yaml           # under `publish:`, set backend: instagrapi
-reelbot login                 # logs in once and saves the session
+$EDITOR .env                  # fill in IG_USER_ID and IG_ACCESS_TOKEN
+$EDITOR config.yaml           # under `publish:`, set backend: graph
+reelbot login                 # checks that the Page token can read the IG account
 reelbot run                   # for real
 ```
 
@@ -77,7 +77,7 @@ reelbot run                   # for real
 | `reelbot run [--loop]` | Discover, download and publish in one pass |
 | `reelbot status [--events N]` | Queue counts, posting budget, recent activity |
 | `reelbot retry` | Re-queue failures that still have attempts left |
-| `reelbot login` | Log in to Instagram and save the session |
+| `reelbot login` | Verify the Graph token or log in with the legacy backend |
 | `reelbot caption ID [--set]` | Preview or override a caption |
 
 Global flags (`-c/--config`, `-v/--verbose`, `-q/--quiet`) work before or after
@@ -91,8 +91,8 @@ and gives you the generated caption in an editable box. **Approve** stores your
 edited caption and moves it into the download queue; **Reject** takes it out
 permanently. Downloaded and posted videos play back from local disk.
 
-It binds to localhost and only ever serves files out of your download
-directory. Don't expose it to the internet — it has no authentication.
+It binds to localhost by default and only serves files out of your download
+directory. A password is required if it binds to another address, as in CasaOS.
 
 ## Configuration
 
@@ -119,7 +119,8 @@ remembered so an hourly run doesn't re-fetch them, but changing any filter
 clears that memory automatically, so a loosened filter takes effect on the
 next pass. `reelbot discover --refilter` forces the same thing by hand.
 
-**caption** — a template over the video's metadata. Available tokens:
+**caption** — `{title}` by default, so the Instagram caption matches the
+YouTube title. Available template tokens:
 `{title}` `{channel}` `{channel_url}` `{url}` `{description}` `{views}`
 `{upload_date}` `{hashtags}`. A caption edited in the review UI wins over the
 template for that video.
@@ -145,40 +146,22 @@ bars instead), trimmed to `max_duration` (with a warning if that actually cuts
 anything), and given a silent audio track if it
 has none — Instagram rejects Reels without audio.
 
-## Posting without Meta API keys
+## Posting through Meta
 
-The default `instagrapi` backend talks to the same private mobile API the
-Instagram app uses, authenticated with your own username and password. No
-developer app, no Business account, no tokens, no public URL to host the file
-at.
+Use `publish.backend: graph` with a Business or Creator Instagram account linked
+to a Facebook Page. Set `IG_USER_ID` to the Instagram account ID and
+`IG_ACCESS_TOKEN` to a Page access token with `instagram_content_publish`. Keep
+the token in `.env` or the CasaOS app settings, never in `config.yaml` or Git.
+The Page token expires, so replace it before the date shown in Meta's Access
+Token Debugger. `reelbot login` checks that the configured token can read the
+Instagram account without posting anything.
 
-The trade-off is that this is not an API Meta supports, and automating a
-personal account is against Instagram's terms. Accounts do get action-blocked.
-What the tool does to keep that unlikely:
-
-- **The session is saved** to `data/ig_session.json` and reused, along with the
-  device fingerprint. Logging in fresh every run is the single fastest way to
-  get flagged. `reelbot login` once; after that, runs reuse it silently and
-  re-authenticate on the same device only when it expires.
-- **Calls are spaced out** — `instagram.delay_range` jitters each API call, and
-  `publish.max_per_day` / `min_minutes_between_posts` cap the pace above that.
-- **Defaults are conservative**: 3 posts a day, 90 minutes apart.
-
-Practical advice: start at one post a day for the first week, run from a stable
-IP (set `instagram.proxy` to a residential proxy if the machine is in a
-datacenter), and don't point it at a brand-new account.
-
-**Two-factor auth:** put the TOTP *seed* (the "can't scan the code?" key) in
-`IG_TOTP_SEED` and reelbot generates the current code at login. A plain 6-digit
-code works too for a one-off `reelbot login`.
-
-### The official alternative
-
-If you'd rather stay on supported rails, `publish.backend: graph` uses the Meta
-Graph API instead. That needs a Creator/Business account linked to a Facebook
-Page, an app with `instagram_content_publish`, a long-lived token, and a public
-HTTPS URL Meta can fetch the video from (`graph.public_base_url`). It's more
-setup and more moving parts, which is why it isn't the default.
+Reelbot downloads the approved Short, converts it if necessary, then creates a
+Reel container with `upload_type=resumable`. It sends the local video file to
+the upload URI returned by Meta, waits for processing to finish, and calls
+`media_publish`. No public file server is needed. The existing `instagrapi`
+backend remains available for older local installs, but CasaOS uses `graph` for
+real publishing.
 
 ## Running it on a schedule
 
@@ -221,7 +204,7 @@ ghcr.io/the-tinhorn/reels:latest        linux/amd64 + linux/arm64
    [`docker-compose.casaos.yml`](docker-compose.casaos.yml).
 2. Fill in the settings it shows you, at minimum:
    - `REELBOT_SOURCE_URL` — the channel to watch
-   - `IG_USERNAME` / `IG_PASSWORD`
+   - `IG_USER_ID` and `IG_ACCESS_TOKEN` from your Meta app
    - `REELBOT_REVIEW_PASSWORD` — the approval page refuses to start without one
    - `TZ` — so posting hours mean your local time
 3. Install, then click the tile. It opens the approval queue.
@@ -231,7 +214,7 @@ Flip it back at github.com/users/The-Tinhorn/packages → `reels` → Package
 settings → Change visibility → Public.)
 
 Leave `REELBOT_BACKEND` on `dryrun` at first — nothing is posted in that mode,
-so you can watch what it picks and check the captions. Switch to `instagrapi`
+so you can watch what it picks and check the captions. Switch to `graph`
 when you're happy, and restart the app.
 
 It's one container: the pipeline loops hourly and serves the approval page from
@@ -245,11 +228,13 @@ from the CasaOS app settings:
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `REELBOT_SOURCE_URL` | — | Channel, playlist or search URL to watch |
-| `REELBOT_BACKEND` | `dryrun` | `dryrun` posts nothing; `instagrapi` posts for real |
+| `REELBOT_BACKEND` | `dryrun` | `dryrun` posts nothing; `graph` publishes through Meta |
+| `IG_USER_ID` | — | Instagram account ID returned by Meta |
+| `IG_ACCESS_TOKEN` | — | Long-lived Facebook Page access token |
 | `REELBOT_MAX_PER_DAY` | `3` | Posts per 24h. Empty = unlimited, `0` = paused |
 | `REELBOT_MIN_MINUTES_BETWEEN_POSTS` | `90` | Minimum gap between posts |
 | `REELBOT_POSTING_HOURS` | any | e.g. `9,13,19` — local time |
-| `REELBOT_HASHTAGS` | `#reels #shorts` | Appended to every caption |
+| `REELBOT_CAPTION_TEMPLATE` | `{title}` | Caption format, including on older installs |
 | `REELBOT_MAX_DURATION` | `180` | Skip anything longer, in seconds. Also the trim ceiling. |
 | `REELBOT_PUBLISHED_WITHIN_DAYS` | none | Ignore Shorts older than N days. Empty = no limit |
 | `REELBOT_PRESET` | `medium` | `veryfast` on a Pi |
@@ -257,8 +242,6 @@ from the CasaOS app settings:
 | `REELBOT_COOKIES_FILE` | auto | Cookie file path; `cookies.txt` beside the config is found anyway |
 | `REELBOT_PLAYER_CLIENT` | yt-dlp default | e.g. `tv` — another route past YouTube's bot check |
 | `REELBOT_REVIEW_PASSWORD` | — | Required for the approval page |
-| `IG_USERNAME` / `IG_PASSWORD` | — | Your Instagram login |
-| `IG_TOTP_SEED` | — | 2FA seed key, if the account has 2FA |
 | `TZ` | `UTC` | Your timezone |
 
 The container writes `config.yaml` into the volume on first start if it isn't
@@ -293,8 +276,8 @@ docker compose run --rm reelbot init       # writes data/config.yaml and data/.e
 Edit `data/config.yaml` — point `sources` at your channel — and `data/.env`:
 
 ```
-IG_USERNAME=your_handle
-IG_PASSWORD=your_password
+IG_USER_ID=your_instagram_account_id
+IG_ACCESS_TOKEN=your_facebook_page_token
 REELBOT_REVIEW_PASSWORD=pick-something     # the review UI needs this
 ```
 
@@ -315,6 +298,9 @@ Two services share one `./data` volume:
 
 Open `http://<your-pi>:8765` from any machine on your network, log in with any
 username and the password you set, and approve. Then:
+
+Keep `publish.backend: dryrun` while checking the queue and captions. Set it to
+`graph` in `data/config.yaml` when you are ready to publish through Meta.
 
 ```bash
 docker compose logs -f reelbot             # watch it work

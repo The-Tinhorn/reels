@@ -64,7 +64,8 @@ def test_source_needs_url(tmp_path):
 def test_relative_paths_resolve_against_the_config(tmp_path):
     cfg = load_config(write(tmp_path / "c.yaml", "db_path: data/x.db\n"))
     assert cfg.resolve(cfg.db_path) == tmp_path.resolve() / "data" / "x.db"
-    assert cfg.resolve("/tmp/abs.db") == Path("/tmp/abs.db")
+    absolute = tmp_path / "abs.db"
+    assert cfg.resolve(str(absolute)) == absolute
 
 
 def test_shipped_template_parses(tmp_path):
@@ -72,6 +73,21 @@ def test_shipped_template_parses(tmp_path):
     cfg = load_config(template)
     assert cfg.publish.backend == "dryrun"     # safe by default
     assert cfg.sources and cfg.sources[0].auto_approve is False
+    assert cfg.caption.template == "{title}"
+
+
+def test_casaos_caption_override_updates_an_existing_config(monkeypatch, tmp_path):
+    monkeypatch.setenv("REELBOT_CAPTION_TEMPLATE", "{title}")
+    old_config = write(
+        tmp_path / "config.yaml",
+        "caption:\n  template: '{title} via {channel} #reels'\n"
+        "  append_source_url: true\n"
+        "graph:\n  public_base_url: 'https://old.example'\n",
+    )
+    cfg = load_config(old_config)
+    assert cfg.caption.template == "{title}"
+    assert cfg.caption.append_source_url is False
+    assert cfg.graph.public_base_url == "https://old.example"
 
 
 def test_dotenv_last_value_wins_within_the_file():
