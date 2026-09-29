@@ -123,7 +123,9 @@ next pass. `reelbot discover --refilter` forces the same thing by hand.
 YouTube title. Available template tokens:
 `{title}` `{channel}` `{channel_url}` `{url}` `{description}` `{views}`
 `{upload_date}` `{hashtags}`. A caption edited in the review UI wins over the
-template for that video.
+template for that video. For unposted videos approved with the former default
+`🎥 via ... #reels` caption, Reelbot now uses the title-only caption instead.
+Already-posted captions are not changed.
 
 **publish** — the throttle:
 

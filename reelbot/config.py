@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Union, get_args, get_origin, get_t
 import yaml
 
 ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+LEGACY_CAPTION_TEMPLATE = "{title}\n\n🎥 via {channel}\n{hashtags}"
 
 
 def parse_dotenv(text: str) -> Dict[str, str]:
@@ -311,6 +312,12 @@ def load_config(path: str | os.PathLike) -> Config:
         graph=_build(GraphConfig, raw.get("graph")),
         path=str(path.resolve()),
     )
+
+    # Older installs keep config.yaml when the image updates. Migrate only the
+    # former shipped caption template; leave custom formats alone.
+    if cfg.caption.template.strip() == LEGACY_CAPTION_TEMPLATE:
+        cfg.caption.template = "{title}"
+        cfg.caption.append_source_url = False
 
     # CasaOS keeps an existing config.yaml across image updates. This env override
     # lets its settings switch the caption format without replacing that file.

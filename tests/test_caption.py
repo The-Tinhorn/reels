@@ -1,6 +1,7 @@
 from conftest import make_video
 from reelbot.caption import build_caption, normalize_hashtags, render_template, truncate
 from reelbot.config import CaptionConfig
+from reelbot.store import POSTED
 
 
 def test_tokens_are_substituted():
@@ -11,6 +12,32 @@ def test_tokens_are_substituted():
 
 def test_default_caption_is_only_the_youtube_title():
     assert build_caption(make_video(title="My YouTube Short"), CaptionConfig()) == "My YouTube Short"
+
+
+def test_old_saved_generated_caption_uses_title_only():
+    video = make_video(
+        title="My YouTube Short",
+        caption="My YouTube Short\n\n🎥 via Tinhorn\n#reels #shorts",
+    )
+    assert build_caption(video, CaptionConfig()) == "My YouTube Short"
+
+
+def test_old_saved_generated_caption_is_preserved_when_custom_template_selected():
+    old = "My YouTube Short\n\n🎥 via Tinhorn\n#reels"
+    video = make_video(title="My YouTube Short", caption=old)
+    assert build_caption(video, CaptionConfig(template="{title} by {channel}")) == old
+
+
+def test_similar_manual_caption_is_not_discarded():
+    edited = "My YouTube Short\n\n🎥 via Tinhorn\n#reels\nMy personal note"
+    video = make_video(title="My YouTube Short", caption=edited)
+    assert build_caption(video, CaptionConfig()) == edited
+
+
+def test_caption_on_already_posted_video_is_not_rewritten():
+    old = "My YouTube Short\n\n🎥 via Tinhorn\n#reels"
+    video = make_video(title="My YouTube Short", caption=old, status=POSTED)
+    assert build_caption(video, CaptionConfig()) == old
 
 
 def test_braces_in_the_title_do_not_break_rendering():

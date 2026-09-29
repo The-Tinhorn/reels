@@ -111,7 +111,7 @@ def _fmt_duration(seconds: int) -> str:
 
 def _card(video, cfg: Config) -> str:
     e = html.escape
-    caption = video.caption or build_caption(video, cfg.caption)
+    caption = build_caption(video, cfg.caption)
 
     if video.status in (PENDING, APPROVED) and not video.video_path:
         media = f'<iframe src="https://www.youtube.com/embed/{e(video.id)}" allowfullscreen loading="lazy"></iframe>'

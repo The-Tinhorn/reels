@@ -179,6 +179,18 @@ def test_review_ui_escapes_html_in_titles(cfg, store):
     assert "&lt;script&gt;" in page
 
 
+def test_review_ui_shows_title_instead_of_old_generated_caption(cfg, store):
+    store.add_candidate(make_video(
+        "short1",
+        title="Cats being dramatic",
+        caption="Cats being dramatic\n\n🎥 via Tinhorn\n#reels #shorts",
+    ))
+    with ReviewServer(cfg, store) as server:
+        _, page = server.get("/")
+    assert '<textarea name="caption" spellcheck="true">Cats being dramatic</textarea>' in page
+    assert "🎥 via Tinhorn" not in page
+
+
 def test_review_ui_json_endpoint(cfg, store):
     store.add_candidate(make_video("short1"))
     with ReviewServer(cfg, store) as server:

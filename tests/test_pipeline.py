@@ -102,6 +102,14 @@ def test_publish_records_the_post(cfg, store, downloaded):
     assert publisher.calls[0][1] == video.caption
 
 
+def test_publish_old_approved_caption_uses_youtube_title(cfg, store, downloaded):
+    store.update("v1", caption="A test short\n\n🎥 via Test Channel\n#reels #shorts")
+    publisher = FakePublisher()
+    pipeline.publish_video(cfg, store, store.get("v1"), publisher=publisher)
+    assert publisher.calls[0][1] == "A test short"
+    assert store.get("v1").caption == "A test short"
+
+
 def test_publish_failure_is_recorded_and_retryable(cfg, store, downloaded):
     with pytest.raises(pipeline.PipelineError):
         pipeline.publish_video(cfg, store, downloaded, publisher=FakePublisher(fail=True))

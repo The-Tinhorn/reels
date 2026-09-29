@@ -90,6 +90,16 @@ def test_casaos_caption_override_updates_an_existing_config(monkeypatch, tmp_pat
     assert cfg.graph.public_base_url == "https://old.example"
 
 
+def test_old_shipped_caption_template_migrates_without_env_override(monkeypatch, tmp_path):
+    monkeypatch.delenv("REELBOT_CAPTION_TEMPLATE", raising=False)
+    old_config = write(
+        tmp_path / "config.yaml",
+        "caption:\n  template: |\n    {title}\n\n    🎥 via {channel}\n    {hashtags}\n",
+    )
+    cfg = load_config(old_config)
+    assert cfg.caption.template == "{title}"
+
+
 def test_dotenv_last_value_wins_within_the_file():
     """The shipped .env ships empty placeholders; appending a value must work."""
     from reelbot.config import parse_dotenv

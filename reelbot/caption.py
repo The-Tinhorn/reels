@@ -6,10 +6,11 @@ import re
 from typing import Dict, List, Optional
 
 from reelbot.config import CaptionConfig
-from reelbot.store import Video
+from reelbot.store import POSTED, Video
 
 TOKEN = re.compile(r"\{([a-z_]+)\}")
 HASHTAG = re.compile(r"#\w+")
+LEGACY_CREDIT = re.compile(r"\s+🎥 via [^\n#]+(?:\s+#[\w]+)*\s*\Z")
 #: Instagram silently drops a post's hashtags past this count.
 MAX_HASHTAGS = 30
 
@@ -38,7 +39,14 @@ def normalize_hashtags(tags: List[str]) -> List[str]:
 def build_caption(video: Video, cfg: CaptionConfig, extra_hashtags: Optional[List[str]] = None) -> str:
     """Render the caption for *video*, honouring a reviewer's manual override."""
     if video.caption:
-        return video.caption[: cfg.max_length]
+        title = (video.title or "").strip()
+        old_suffix = video.caption[len(title):] if title and video.caption.startswith(title) else ""
+        # The old review UI saved its generated "🎥 via ... #reels" text on
+        # approval. Treat only that exact shape as generated when title-only is
+        # selected, so existing edited captions still win.
+        if (video.status == POSTED or cfg.template.strip() != "{title}"
+                or not LEGACY_CREDIT.fullmatch(old_suffix)):
+            return video.caption[: cfg.max_length]
 
     hashtags = normalize_hashtags(list(cfg.hashtags) + list(extra_hashtags or []))
     values = {

@@ -224,11 +224,14 @@ youtube.com by network policy, so every test fakes the yt-dlp call. Everything
 downstream of that call — real ffmpeg re-encodes, the real review server — is
 exercised for real.
 
-**Config files are not automatically migrated.** `docker-entrypoint.sh` only
-writes `config.yaml` if it is absent. Existing CasaOS installs can set
-`REELBOT_CAPTION_TEMPLATE={title}` to override the old caption template, and
-the old `graph.public_base_url` key remains accepted but unused. Check other
-older settings manually; do not rename a populated config without backing it up.
+**Config files are not generally migrated.** `docker-entrypoint.sh` only writes
+`config.yaml` if it is absent. The former shipped caption template is an
+exception: it now resolves to `{title}`, and unposted videos with the old
+auto-generated `🎥 via ... #reels` caption render title-only while deliberate
+edits are preserved. `REELBOT_CAPTION_TEMPLATE={title}` also overrides older
+custom templates. The old `graph.public_base_url` key remains accepted but
+unused. Check other older settings manually; do not rename a populated config
+without backing it up.
 
 ---
 
